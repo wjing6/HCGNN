@@ -1,0 +1,3 @@
+/home/tiger/liuyibo/local/torch-quiver/ginex-plus/utils/CMakeFiles/log.dir
+/home/tiger/liuyibo/local/torch-quiver/ginex-plus/utils/CMakeFiles/edit_cache.dir
+/home/tiger/liuyibo/local/torch-quiver/ginex-plus/utils/CMakeFiles/rebuild_cache.dir

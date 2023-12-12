@@ -30,17 +30,19 @@ def create_extension(with_cuda=False):
     print('Building torch_quiver with CUDA:', with_cuda)
     srcs = []
     srcs += glob.glob('./*.cpp')
-
+    srcs += glob.glob('./*.cu')
+    srcs += glob.glob('log/*.cpp')
     include_dirs = [
-        os.path.join(os.getcwd(), './')
+        os.path.join(os.getcwd(), './'),
+        os.path.join(os.getcwd(), 'log/')
     ]
-    print(include_dirs)
     
     library_dirs = []
     libraries = []
     extra_cxx_flags = [
         '-std=c++17',
-        '-DUSE_LOG'
+        '-DUSE_LOG',
+        '-fopenmp'
         # TODO: enforce strict build
         # '-Wall',
         # '-Werror',
@@ -57,11 +59,12 @@ def create_extension(with_cuda=False):
         # srcs += glob.glob('srcs/cpp/src/quiver/cuda/*.cu')
         extra_cxx_flags += ['-DHAVE_CUDA']
 
+    print (include_dirs)
     if os.getenv('QUIVER_ENABLE_TRACE'):
         extra_cxx_flags += ['-DQUIVER_ENABLE_TRACE=1']
 
     return cpp_extension.CppExtension(
-        'prepare_data',
+        'gather_gpu',
         srcs,
         include_dirs=include_dirs,
         library_dirs=library_dirs,
@@ -69,14 +72,14 @@ def create_extension(with_cuda=False):
         # with_cuda=with_cuda,
         extra_compile_args={
             'cxx': extra_cxx_flags,
-            'nvcc': ['-O3', '--expt-extended-lambda', '-lnuma'],
+            'nvcc': ['-O3', '--expt-extended-lambda', '-Xcompiler', '-fopenmp', '-lnuma', '-lcudart', '-DUSE_LOG'],
         },
     )
 
 
 
 setup(
-    name='prepare_data',
+    name='gather_gpu',
     license='Apache',
     python_requires='>=3.6',
     ext_modules=[

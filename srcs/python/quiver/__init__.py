@@ -9,7 +9,6 @@ from .generate_neighbour_num import generate_neighbour_num
 from .comm import NcclComm, getNcclId
 from .partition import quiver_partition_feature, load_quiver_feature_partition
 from .serving import RequestBatcher, HybridSampler, InferenceServer, InferenceServer_Debug
-
 __all__ = [
     "Feature", "DistFeature", "GraphSageSampler", "PartitionInfo", "CSRTopo",
     "MixedGraphSageSampler",

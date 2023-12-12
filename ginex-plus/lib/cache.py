@@ -10,19 +10,19 @@ from tqdm import tqdm
 
 
 def save(i, in_indices, in_indices_, out_indices, exp_name, sb):
-    path = './trace/' + exp_name + '/sb_' + str(sb) + '_update_' + str(i) + '.pth'
+    path = '/data01/liuyibo/trace/' + exp_name + '/sb_' + str(sb) + '_update_' + str(i) + '.pth'
     torch.save((in_indices.cpu(), in_indices_.cpu(), out_indices.cpu()), path)
 
 
 def load(n_id_list, indices, exp_name, sb):
     for i in indices:
-        n_id = torch.load('./trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth')
+        n_id = torch.load('/data01/liuyibo/trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth')
         n_id_list[i] = n_id
 
 
 def load_into_queue(q, indices, exp_name, sb):
     for i in indices:
-        q.put(torch.load('./trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth'))
+        q.put(torch.load('/data01/liuyibo/trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth'))
 
 
 def send(q, n_id_list, indices):
@@ -50,7 +50,7 @@ class FeatureCache:
 
     '''
     def __init__(self, size, effective_sb_size, num_nodes, mmapped_features, 
-            feature_dim, exp_name, sb, verbose):
+            feature_dim, exp_name, sb, verbose, uvm_mode):
         
         self.size = size
         self.effective_sb_size = effective_sb_size
@@ -65,8 +65,11 @@ class FeatureCache:
         self.sb = sb
         self.verbose = verbose
         
-        self.pass3Time = 0
+        self.uvm_mode = uvm_mode
+        
         self.ReadTime = 0
+        self.pass3Time = 0
+        
         
         # The address table of the cache has num_nodes entries each of which is a single
         # int32 value. This can support the cache with up to 2147483647 entries.
@@ -79,10 +82,15 @@ class FeatureCache:
     # Fill cache with the feature vectors corresponding to the given indices. It is called
     # when initializing the feature cache in order to reduce the cold misses. 
     def fill_cache(self, indices):
-        self.address_table = torch.full((self.num_nodes,), -1, dtype=torch.int32)
+        if not self.uvm_mode: # assume CPU gather
+            self.address_table = torch.full((self.num_nodes,), -1, dtype=torch.int32)
+        else:
+            self.address_table = uvm_alloc_indice(self.num_nodes)
+        
         self.address_table[indices] = torch.arange(indices.numel(), dtype=torch.int32)
         orig_num_threads = torch.get_num_threads() 
         torch.set_num_threads(int(os.environ['GINEX_NUM_THREADS']))
+        
         self.cache = self.mmapped_features[indices]
         torch.set_num_threads(orig_num_threads) 
 
@@ -303,13 +311,18 @@ class NeighborCache:
         indices (Tensor): the (memory-mapped) indices tensor.
         num_nodes (int): the number of nodes in the graph.
     '''
-    def __init__(self, size, score, indptr, indices, num_nodes):
+    def __init__(self, size, score, indptr, indices, num_nodes, prop = 0.1):
         self.size = size
         self.indptr = indptr
         self.indices = indices
         self.num_nodes = num_nodes
+        self.prop = prop
 
-        self.cache, self.address_table, self.num_entries = self.init_by_score(score)
+        '''
+        For test, using prop rather the actual size
+        '''
+        # self.cache, self.address_table, self.num_entries = self.init_by_score(score)
+        self.cache, self.address_table, self.num_entries = self.init_prop_by_score(score)
 
 
     def init_by_score(self, score):
@@ -337,7 +350,29 @@ class NeighborCache:
                     
         return cache, address_table, num_entries
 
+    def init_prop_by_score(self, score):
+        sorted_indices = score.argsort(descending=True)
+        neighbor_counts = self.indptr[1:] - self.indptr[:-1]
+        neighbor_counts = neighbor_counts[sorted_indices]
 
+        cache_nodes = int(self.num_nodes * self.prop)
+
+        address_table = torch.full((self.num_nodes,), -1, dtype=torch.int64)
+
+        # Fetch neighborhood information of nodes into the cache one by one in order
+        # of score until the cache gets full
+        cumulative_size = torch.cumsum(neighbor_counts+1, dim=0)
+        address_table[sorted_indices[:cache_nodes]] = torch.cat([torch.zeros(1).long(), cumulative_size[:cache_nodes-1]])
+        cached_idx = (address_table >= 0).nonzero().squeeze()
+
+        cache_size =  cumulative_size[cache_nodes - 1]
+        # Multi-threaded load of neighborhood information
+        cache = torch.zeros(cache_size, dtype=torch.int64)
+        print (cache_size, cached_idx.shape)
+        fill_neighbor_cache(cache, self.indptr, self.indices, cached_idx, address_table, cache_nodes)
+        print ("== Prepare Neighbor Static Cache Finish ==")
+        return cache, address_table, cache_nodes
+    
     def save(self, data, filename):
         data_path = filename + '.dat'
         conf_path = filename + '_conf.json'

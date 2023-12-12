@@ -23,47 +23,6 @@ from quiver.pyg import GraphSageSampler
 from lib.cache import FeatureCache
 from lib.utils import *
 
-sample_time = 0
-gather_time = 0
-transfer_time = 0
-train_time = 0
-ssdW_time = 0
-cache_time = 0
-read_time = 0
-
-argparser = argparse.ArgumentParser()
-argparser.add_argument('--num-epochs', type=int, default=10)
-argparser.add_argument('--batch-size', type=int, default=4096)
-argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
-argparser.add_argument('--exp-name', type=str, default=None)
-argparser.add_argument('--sb-size', type=int, default='1000')
-argparser.add_argument('--feature-cache-size', type=float, default=500000000)
-argparser.add_argument('--trace-load-num-threads', type=int, default=4)
-argparser.add_argument('--ginex-num-threads', type=int, default=os.cpu_count()*8)
-argparser.add_argument('--verbose', dest='verbose', default=False, action='store_true')
-argparser.add_argument('--train-only', dest='train_only', default=False, action='store_true')
-args = argparser.parse_args()
-
-if args.exp_name is None:
-    now = datetime.now()
-    args.exp_name = now.strftime('%Y_%m_%d_%H_%M_%S')
-os.makedirs(os.path.join('./trace', args.exp_name), exist_ok=True)
-root = "/data01/liuyibo/papers/"
-dataset = PygNodePropPredDataset('ogbn-papers100M', root)
-dataset_path = os.path.join(root, 'ginex')
-
-
-split_idx = dataset.get_idx_split()
-evaluator = Evaluator(name='ogbn-papers100M')
-data = dataset[0]
-
-print ("===========Loading Finished ==============")
-
-num_nodes = data.num_nodes
-features = data.x
-labels = data.y.squeeze()
-train_idx = dataset.get_idx_split()['train']
-
 
 def prepareMMAPFeature(dataset_path, features):
     os.makedirs(dataset_path, exist_ok=True)
@@ -77,9 +36,65 @@ def prepareMMAPFeature(dataset_path, features):
     features = torch.from_numpy(features_mmap)
     return features, features_path
 
-mmapped_features, features_path = prepareMMAPFeature(dataset_path, features)
-num_features = features.shape[1]
+def loadingMMAPFeature(features_path, shape):
+    features = np.memmap(features_path, mode='r', shape=shape, dtype=np.float32)
+    features = torch.from_numpy(features)
+    return features
 
+KB = 2 ** 10
+MB = 2 ** 20
+GB = 2 ** 30
+
+sample_time = 0
+gather_time = 0
+transfer_time = 0
+train_time = 0
+ssdW_time = 0
+cache_time = 0
+read_time = 0
+
+argparser = argparse.ArgumentParser()
+argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
+argparser.add_argument('--num-epochs', type=int, default=10)
+argparser.add_argument('--batch-size', type=int, default=4096)
+argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
+argparser.add_argument('--exp-name', type=str, default=None)
+argparser.add_argument('--sb-size', type=int, default='100')
+argparser.add_argument('--feature-cache-size', type=float, default=500000000)
+argparser.add_argument('--trace-load-num-threads', type=int, default=4)
+argparser.add_argument('--ginex-num-threads', type=int, default=os.cpu_count()* 2)
+argparser.add_argument('--verbose', dest='verbose', default=False, action='store_true')
+argparser.add_argument('--train-only', dest='train_only', default=False, action='store_true')
+argparser.add_argument('--uvm-gather', dest='uvm_gather', default=False, action='store_true')
+args = argparser.parse_args()
+
+if args.exp_name is None:
+    now = datetime.now()
+    args.exp_name = now.strftime('%Y_%m_%d_%H_%M_%S')
+os.makedirs(os.path.join('/data01/liuyibo/trace', args.exp_name), exist_ok=True)
+root = "/data01/liuyibo/"
+dataset = PygNodePropPredDataset(args.dataset, root)
+dataset_path = os.path.join(root, args.dataset + '-ginex')
+
+split_idx = dataset.get_idx_split()
+evaluator = Evaluator(name=args.dataset)
+data = dataset[0]
+
+num_nodes = data.num_nodes
+shape = data.x.shape
+labels = data.y.squeeze()
+train_idx = dataset.get_idx_split()['train']
+
+features_path = os.path.join(dataset_path, 'features.dat')
+feature_cache_indice_path = os.path.join(dataset_path, 'feature_indice.dat')
+
+mmapped_features = loadingMMAPFeature(features_path, shape)
+feature_dim = shape[1]
+
+# print ("="* 20 + "Loading Finished" + "=" * 20)
+# os.environ['GATHER_NUM_THREADS'] = str(args.ginex_num_threads)
+
+# default: UVA
 subgraph_loader = NeighborSampler(data.edge_index, node_idx=None, sizes=[-1],
                                   batch_size=4096, shuffle=False,
                                   num_workers=12)
@@ -156,7 +171,7 @@ def inspect(i, last, mode = "train"):
     # No changeset precomputation when i == 0
     if i != 0:
         effective_sb_size = int((train_idx.numel()%(args.sb_size*args.batch_size) + args.batch_size - 1) / args.batch_size) if last else args.sb_size
-        cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes, mmapped_features, num_features, args.exp_name, i - 1, args.verbose)
+        cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes, mmapped_features, feature_dim, args.exp_name, i - 1, args.verbose, args.uvm_gather)
         # Pass 1 and 2 are executed before starting sb sample.
         # We overlap only the pass 3 of changeset precomputation, 
         # which is the most time consuming part, with sb sample.
@@ -183,8 +198,8 @@ def inspect(i, last, mode = "train"):
         
         sample_start = time.time()
         n_id, batch_size, adjs = quiver_sampler.sample(seeds)
-        n_id_filename = os.path.join('./trace', args.exp_name, 'sb_' + str(i) + '_ids_' + str(step) + '.pth')
-        adjs_filename = os.path.join('./trace', args.exp_name, 'sb_' + str(i) + '_adjs_' + str(step) + '.pth')
+        n_id_filename = os.path.join('/data01/liuyibo/trace', args.exp_name, 'sb_' + str(i) + '_ids_' + str(step) + '.pth')
+        adjs_filename = os.path.join('/data01/liuyibo/trace', args.exp_name, 'sb_' + str(i) + '_adjs_' + str(step) + '.pth')
         
         if (quiver_sampler.mode != 'CPU'):
             n_id = n_id.to("cpu")
@@ -211,19 +226,25 @@ def switch(cache, initial_cache_indices):
 def trace_load(q, indices, sb):
     for i in indices:
         q.put((
-            torch.load('./trace/' + args.exp_name + '/' + 'sb_' + str(sb) + '_ids_' + str(i) + '.pth'),
-            torch.load('./trace/' + args.exp_name + '/' + 'sb_' + str(sb) + '_adjs_' + str(i) + '.pth'),
-            torch.load('./trace/' + args.exp_name + '/' + 'sb_' + str(sb) + '_update_' + str(i) + '.pth'),
+            torch.load('/data01/liuyibo/trace/' + args.exp_name + '/' + 'sb_' + str(sb) + '_ids_' + str(i) + '.pth'),
+            torch.load('/data01/liuyibo/trace/' + args.exp_name + '/' + 'sb_' + str(sb) + '_adjs_' + str(i) + '.pth'),
+            torch.load('/data01/liuyibo/trace/' + args.exp_name + '/' + 'sb_' + str(sb) + '_update_' + str(i) + '.pth'),
             ))
 
 def gather(gather_q, n_id, cache, batch_size):
     global gather_time
+    global copyInMem_time
+    global mmap_time
     
     gather_start = time.time()
-    batch_inputs = gather_ginex(features_path, n_id, num_features, cache)
+    batch_inputs, not_in_cache = gather_ginex_async(features_path, n_id, feature_dim, cache)
+    # batch_inputs = cuda_gather.gather(n_id)
     batch_labels = labels[n_id[:batch_size]]
     gather_floating = time.time() - gather_start
     gather_time += gather_floating
+    
+    trans_bytes = get_size(batch_inputs)
+    print ("=" * 10 + "time: {:4f}, trans: {:.4f} MB, {:4f} MB/s, IOPS: {:4f} /s".format(gather_floating, trans_bytes / MB, trans_bytes / (gather_floating * MB), float(not_in_cache) / (gather_floating)) + "=" * 10)
     
     gather_q.put((batch_inputs, batch_labels))
     
@@ -273,16 +294,19 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
             # Gather
             gather_start = time.time()
             
-            batch_inputs = gather_ginex(features_path, n_id, num_features, cache)
+            batch_inputs, not_in_cache = gather_ginex_async(features_path, n_id, feature_dim, cache)
+            
             batch_labels = labels[n_id[:batch_size]]
             
             gather_floating = time.time() - gather_start
             gather_time += gather_floating
             
+            trans_bytes = get_size(batch_inputs)
+            print ("=" * 10 + "time: {:4f}, trans: {:.4f} MB, {:4f} MB/s, IOPS: {:4f} /s".format(gather_floating, trans_bytes / MB, trans_bytes / (gather_floating * MB), float(not_in_cache) / (gather_floating)) + "=" * 10)
 
             # Cache
             cache.update(batch_inputs, in_indices, in_positions, out_indices)
-
+            print ("finish update")
         if idx != 0:
             # Gather
             (batch_inputs, batch_labels) = gather_q.get()
@@ -360,9 +384,9 @@ model = model.to(device)
 y = data.y.squeeze().to(device)
 
 def delete_trace(i):
-    n_id_filelist = glob.glob('./trace/' + args.exp_name + '/sb_' + str(i - 1) + '_ids_*')
-    adjs_filelist = glob.glob('./trace/' + args.exp_name + '/sb_' + str(i - 1) + '_adjs_*')
-    cache_filelist = glob.glob('./trace/' + args.exp_name + '/sb_' + str(i - 1) + '_update_*')
+    n_id_filelist = glob.glob('/data01/liuyibo/trace/' + args.exp_name + '/sb_' + str(i - 1) + '_ids_*')
+    adjs_filelist = glob.glob('/data01/liuyibo/trace/' + args.exp_name + '/sb_' + str(i - 1) + '_adjs_*')
+    cache_filelist = glob.glob('/data01/liuyibo/trace/' + args.exp_name + '/sb_' + str(i - 1) + '_update_*')
 
     for n_id_file in n_id_filelist:
         try:
@@ -422,6 +446,7 @@ def train(epoch):
         # Switch
         if args.verbose:
             tqdm.write ('Step 2: Switch')
+        print (initial_cache_indices)
         cache = switch(cache, initial_cache_indices)
         torch.cuda.synchronize()
         if args.verbose:
@@ -451,7 +476,7 @@ def train(epoch):
 def test():
     model.eval()
 
-    out = model.inference(features)
+    out = model.inference(mmapped_features)
 
     y_true = y.cpu().unsqueeze(-1)
     y_pred = out.argmax(dim=-1, keepdim=True)
@@ -481,7 +506,6 @@ if __name__=='__main__':
     best_val_acc = final_test_acc = 0
     for epoch in range(args.num_epochs):
         if args.verbose:
-            tqdm.write('\n==============================')
             tqdm.write('Running Epoch {}...'.format(epoch))
 
         start = time.time()
@@ -490,7 +514,7 @@ if __name__=='__main__':
         tqdm.write(f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
         tqdm.write('Epoch time: {:.4f} ms'.format((end - start) * 1000))
         
-        if epoch > 5:
+        if epoch > 5 and not args.train_only:
             train_acc, val_acc, test_acc = test()
             print(f'Train: {train_acc:.4f}, Val: {val_acc:.4f}, '
                 f'Test: {test_acc:.4f}')
@@ -504,8 +528,7 @@ if __name__=='__main__':
                     ssd time: {:.4f} s, cache time: {:.4f} s, \
                     read time: {:.4f} s'.format(sample_time, gather_time, \
                     transfer_time, train_time, ssdW_time, cache_time, read_time))
-        sample_time = 0
-        gather_time = 0
+        sample_time, gather_time = 0, 0
         transfer_time = 0
         train_time = 0
         ssdW_time = 0

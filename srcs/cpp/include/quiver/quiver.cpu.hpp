@@ -82,7 +82,7 @@ class quiver<T, CPU>
             for(size_t i = 1; i <= bs; i ++){
                 output_count_prefix_sum[i] = output_count_prefix_sum[i - 1] + output_counts[i - 1];
             }
-
+            std::cout << "Finding " << output_count_prefix_sum[bs] << std::endl;
         }
 
         //std::cout<<"all sampled nodes "<< output_count_prefix_sum[bs]<<std::endl;
@@ -93,8 +93,12 @@ class quiver<T, CPU>
                 T v = inputs[i];
                 T begin = row_ptr_[v];
                 const T end = v + 1 < n ? row_ptr_[v + 1] : m;
-                
-                safe_sample(col_idx_.data() + begin, col_idx_.data() + end, k, outputs.data() + output_count_prefix_sum[i]);
+                if (end == m) {
+                    std::cout << "encounting error when " << m << " , current vertex is " << v << ", begin is " << begin << std::endl; 
+                }
+                if (begin != end) {
+                    safe_sample(col_idx_.data() + begin, col_idx_.data() + end, k, outputs.data() + output_count_prefix_sum[i]);
+                }
             }
 
         });

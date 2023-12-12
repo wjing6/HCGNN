@@ -13,7 +13,7 @@ __global__ void CSRRowWiseSampleKernel(
     // we assign one warp per row
     assert(blockDim.x == WARP_SIZE);
     assert(blockDim.y == BLOCK_WARPS);
-
+    
     int64_t out_row = blockIdx.x * TILE_SIZE + threadIdx.y;
     const int64_t last_row =
         min(static_cast<int64_t>(blockIdx.x + 1) * TILE_SIZE, num_rows);

@@ -27,7 +27,7 @@
 #include <pybind11/pybind11.h>
 
 #include "timer.h"
-#include "log.h"
+#include "log/log.h"
 #include "queue.h"
 
 using namespace std;
@@ -44,10 +44,13 @@ struct Edge{
     uint64_t dst;
 };
 
-void load_edge_list(const std::string &file_path, std::vector<std::pair<intT, intT>> &lines, intT &max_vertex_id, char skip) {
+std::tuple<std::vector<std::pair<intT, intT>>, intT>
+load_edge_list(const std::string &file_path, char skip) {
     auto start = std::chrono::high_resolution_clock::now();
+    std::vector<std::pair<intT, intT>> lines;
+    lines.clear();
     std::ifstream ifs(file_path);
-    max_vertex_id = 0;
+    intT max_vertex_id = 0;
     std::string tmp_str;
     intT src, dst;
     uint64_t line_count = 0;
@@ -143,8 +146,8 @@ void Extractmap(string &input_folder_path, map<string, uint64_t> *&nodeRemap, ui
                         ss >> first >> second >>  weight >> label;
                         // if (first == second)
                         //     continue;
-                        indexMap[first % hashbucket].push(to_string(first));
-                        indexMap[second % hashbucket].push(to_string(second));
+                        indexMap[first % hashbucket].push(std::to_string(first));
+                        indexMap[second % hashbucket].push(std::to_string(second));
                     }
                 }
                 ifs.close();
@@ -248,8 +251,8 @@ void extractEdgelist(string input_folder_path, vector<std::pair<uint64_t, uint64
                         
                         ss >> first >> second >> weight >> label;
                         // if (first == second) continue;
-                        uint64_t src = nodeRemap[first%hashbucket][to_string(first)] + offset[first%hashbucket];
-                        uint64_t dst = nodeRemap[second%hashbucket][to_string(second)] + offset[second%hashbucket];
+                        uint64_t src = nodeRemap[first%hashbucket][std::to_string(first)] + offset[first%hashbucket];
+                        uint64_t dst = nodeRemap[second%hashbucket][std::to_string(second)] + offset[second%hashbucket];
                         // if (src > dst)
                         //     swap(src, dst);
                         if (src < 10)

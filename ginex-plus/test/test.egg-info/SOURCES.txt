@@ -1,0 +1,7 @@
+setup.py
+./test.cu
+../utils/log/log.cpp
+test.egg-info/PKG-INFO
+test.egg-info/SOURCES.txt
+test.egg-info/dependency_links.txt
+test.egg-info/top_level.txt

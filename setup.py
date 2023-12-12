@@ -16,6 +16,9 @@ def find_cuda():
     else:
         return '/usr/local/cuda'
 
+def find_nccl(): # need identify nccl path
+    home = os.getenv("NCCL_HOME")
+    return home
 
 def have_cuda():
     if os.getenv('QUIVER_ENABLE_CUDA') == '1': return True
@@ -46,8 +49,11 @@ def create_extension(with_cuda=False):
     ]
     if with_cuda:
         cuda_home = find_cuda()
+        nccl_home = find_nccl()
         include_dirs += [os.path.join(cuda_home, 'include')]
+        include_dirs += [os.path.join(nccl_home, 'include')]
         library_dirs += [os.path.join(cuda_home, 'lib64')]
+        library_dirs += [os.path.join(nccl_home, 'lib')]
         srcs += glob.glob('srcs/cpp/src/quiver/cuda/*.cpp')
         srcs += glob.glob('srcs/cpp/src/quiver/cuda/*.cu')
         extra_cxx_flags += ['-DHAVE_CUDA']
