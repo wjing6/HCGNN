@@ -535,5 +535,3 @@ if __name__=='__main__':
         cache_time = 0
         read_time = 0
         
-
-    

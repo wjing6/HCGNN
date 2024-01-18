@@ -129,7 +129,7 @@ class LRUCache(OrderedDict):
 
 
 def get_static_cache_by_pre_sample(capacity, train_idx, batch_size, sampler):
-    cache_idx = set()  # set查找效率高
+    cache_idx = set()  # for fast search
     train_loader = torch.utils.data.DataLoader(train_idx,
                                                batch_size=batch_size,
                                                shuffle=False)
@@ -443,7 +443,6 @@ def test_pre_sample_static_cache(epoch, batch_size):
     print("In dataset {dataset}, cache entries: {:d}, the cache size is {:6f} MB".format( num_cache_entries,
         float(num_cache_entries) * feature_size / UNITS["MB"], dataset=args.dataset))
     # num_batch = int((len(train_idx) - 1) // batch_size) + 1
-    f = open('log_debug.txt','w')
     for e in range(epoch):
         train_idx = np.random.permutation(train_idx)
         pbar = tqdm(total=len(train_idx))
@@ -544,7 +543,6 @@ def test_pre_sample_static_cache(epoch, batch_size):
             total_obj += len(n_id)
         cache_hit -= len(pre_sample_cache)
         pbar.write("In iteration {:d}, the cache hit rate is {:6f} %".format(e, float(cache_hit) / total_obj * 100))
-
 
 
 def test_s3fifo_cache_hit_rate(epoch, batch_size):
