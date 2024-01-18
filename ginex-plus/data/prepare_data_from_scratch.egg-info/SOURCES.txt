@@ -1,0 +1,9 @@
+setup.py
+./prepare.cpp
+../utils/
+../utils/prepare_data.cpp
+../utils/log/log.cpp
+prepare_data_from_scratch.egg-info/PKG-INFO
+prepare_data_from_scratch.egg-info/SOURCES.txt
+prepare_data_from_scratch.egg-info/dependency_links.txt
+prepare_data_from_scratch.egg-info/top_level.txt
