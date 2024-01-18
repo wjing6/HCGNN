@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from ogb.nodeproppred import PygNodePropPredDataset
-from torch_geometric.datasets import Reddit
+# from torch_geometric.datasets import Reddit
 import quiver
 import time
 import numpy as np
@@ -22,6 +22,7 @@ import scipy
 import random
 sys.path.append("../")
 
+from lib.classical_cache import LRUCache, FIFO
 UNITS = {
     #
     "KB": 2**10,
@@ -33,7 +34,6 @@ UNITS = {
     "G": 2**30,
 }
 
-from lib.s3FIFO import s3FIFO
 
 def parse_size(sz) -> int:
     if isinstance(sz, int):
@@ -97,35 +97,6 @@ os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 os.environ['GINEX_NUM_THREADS'] = str(128)
 print(str(args.gpu), torch.cuda.device_count())
 
-
-class LRUCache(OrderedDict):
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.cache = OrderedDict()
-
-    def get(self, key):
-        if key in self.cache:
-            value = self.cache.pop(key)
-            self.cache[key] = value + 1
-        else:
-            value = None
-        return value
-
-    def set(self, key, value):
-        item = None
-        if key in self.cache:
-            value = self.cache.pop(key)
-            self.cache[key] = value + 1
-        else:
-            if len(self.cache) == self.capacity:
-                item = self.cache.popitem(last=False)
-                self.cache[key] = value
-            else:
-                self.cache[key] = value
-        return item
-
-    def is_full(self):
-        return (len(self.cache) == self.capacity)
 
 
 def get_static_cache_by_pre_sample(capacity, train_idx, batch_size, sampler):
@@ -407,30 +378,49 @@ def test_LRU_cache_hit_rate(epoch, batch_size):  # LRU don't need pre-sample
             i, cache_hit_rate / num_batch))
 
 
-def test_static_cache_hit_rate(epoch, batch_size):
+def test_stale_embedding_cache(epoch, batch_size, k_hop = 2):
     global train_idx
-    num_cache_entries = int(args.prop * num_nodes)
+    num_feature_cache_entries = int(args.prop * num_nodes)
+    num_embedding_cache = dict()
+    for i in range(k_hop - 1):
+        tag = 'layer_' + str(i)
+        # layer_0 means the second from the bottom
+        #       layer-(k_hop-1) embedding cache
+        #           layer-1 embedding cache
+        #           layer-0 embedding cache
+        #               feature cache
+        num_embedding_cache[tag] = FIFO(num_nodes, tag, 0.01)
+    
     print("In dataset {dataset}, the cache size is {:6f} MB".format(
-        float(num_cache_entries) * feature_size / UNITS["MB"], dataset=args.dataset))
+        float(num_feature_cache_entries) * feature_size / UNITS["MB"], dataset=args.dataset))
     num_batch = int(len(train_idx) // batch_size) + 1
     for i in range(epoch):
         train_idx = np.random.permutation(train_idx)
         pbar = tqdm(total=len(train_idx))
         pbar.set_description(f'Epoch {i:02d}')
-
-        static_cache = get_static_cache_by_pre_sample(
-            num_cache_entries, train_idx, batch_size, neigh_sampler)
-        pbar.write("static cache warm-up complete! ")
         cache_hit_rate = 0.0
         train_loader = torch.utils.data.DataLoader(train_idx,
                                                    batch_size=batch_size,
                                                    shuffle=False)
         for _, mini_batch_seeds in enumerate(train_loader):
-            n_id, _, _ = neigh_sampler.sample(mini_batch_seeds)
-            curr_hit_rate = float(len(static_cache & set(
-                n_id.tolist()))) / len(n_id.tolist()) * 100
+            nid, _, adjs = neigh_sampler.sample(mini_batch_seeds)
+            if (neigh_sampler.mode != 'CPU'):
+                n_id = n_id.to("cpu")
+                adjs = [adj.to("cpu") for adj in adjs]
+            for i, (_, _, size) in enumerate(adjs):
+                x_target = n_id[:size[1]]
+                print (f'layer-{i}, {x_target}')
+                # target node always placed at head
+                if i != len(adjs) - 1:
+                    # not the top node
+                    tag = 'layer_' + str(i)
+                    num_hit = 0
+                    for target_node in x_target:
+                        if num_embedding_cache[tag].get(target_node):
+                            # hit
+                            num_hit += 1
+                    print (f'num-hit: {num_hit}')
             
-            cache_hit_rate += curr_hit_rate
             pbar.update(len(mini_batch_seeds.tolist()))
 
         pbar.write("In iteration {:d}, the cache hit rate is {:6f} %".format(
@@ -604,9 +594,9 @@ if __name__ == '__main__':
             test_belady_cache_hit_rate(args.epoch, num_sb, repeat=False) # now test sorting
         elif args.cache_policy == 'LRU':
             test_LRU_cache_hit_rate(args.epoch, batch_size)
-        elif args.cache_policy == 'static_mode_1':  # too naive
-            test_static_cache_hit_rate(args.epoch, batch_size)
-        elif args.cache_policy == 'static_mode_2':  # pre-sample one epoch
+        elif args.cache_policy == 'embedding_cache':
+            test_stale_embedding_cache(args.epoch, batch_size)
+        elif args.cache_policy == 'static_mode':  # pre-sample one epoch
             test_pre_sample_static_cache(args.epoch, batch_size)
         elif args.cache_policy == 'fifo':
             test_s3fifo_cache_hit_rate(args.epoch, batch_size)

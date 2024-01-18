@@ -1,3 +1,4 @@
+from tkinter import E
 import torch
 from torch import Tensor
 from torch_sparse import SparseTensor
@@ -55,6 +56,8 @@ class GraphSageSampler:
     def __init__(self,
                  csr_topo: quiver_utils.CSRTopo,
                  sizes: List[int],
+                 embedding_cache,
+                 # consist of multi-layer 
                  device = 0,
                  mode="UVA"):
 
@@ -67,6 +70,7 @@ class GraphSageSampler:
         self.quiver = None
         self.csr_topo = csr_topo
         self.mode = mode
+        self.embedding_cache = embedding_cache
         if self.mode in ["GPU", "UVA"] and device is not _FakeDevice and  device >= 0:
             edge_id = torch.zeros(1, dtype=torch.long)
             self.quiver = qv.device_quiver_from_csr_array(self.csr_topo.indptr,
@@ -81,6 +85,7 @@ class GraphSageSampler:
         self.ipc_handle_ = None
 
     def sample_layer(self, batch, size):
+        # sample need to exclude the stale embedding, then re-include it when passing to topper-layer
         self.lazy_init_quiver()
         if not isinstance(batch, torch.Tensor):
             batch = torch.tensor(batch)
@@ -112,8 +117,27 @@ class GraphSageSampler:
                                                        edge_id, self.device,
                                                        self.mode != "UVA")
 
-    def reindex(self, inputs, outputs, counts):
-        return self.quiver.reindex_single(inputs, outputs, counts)
+    def reindex(self, inputs, outputs, outputs_filter, counts):
+        return self.quiver.reindex_single(inputs, outputs, outputs_filter, counts)
+    
+    def remove_stale_embedding(self, vertices, tag):
+        # tag means the k-hop, name like 'layer_K'
+        if self.mode in ['GPU', 'UVA']:
+            out = self.quiver.remove_embedding_cache(0, vertices, self.embedding_cache[tag].address_table)
+        else:
+            out = self.quiver.remove_embedding_cache(vertices, self.embedding_cache[tag].address_table)
+        return out
+
+    def sample(self, input_nodes):
+        """Sample k-hop neighbors from input_nodes
+
+        Args:
+            input_nodes (torch.LongTensor): seed nodes ids to sample from
+
+        Returns:
+            Tuple: Return results are the same with Pyg's sampler
+        """
+        self.lazy_init_quiver()
 
     def sample(self, input_nodes):
         """Sample k-hop neighbors from input_nodes
@@ -130,9 +154,14 @@ class GraphSageSampler:
         adjs = []
 
         batch_size = len(nodes)
-        for size in self.sizes:
+        for layer, size in enumerate(self.sizes):
             out, cnt = self.sample_layer(nodes, size)
-            frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+            # TODO: add filter for out
+            # out: the total 'global' nID, cnt: the row ptr
+            if layer != len(self.sizes):
+                out_filter = self.remove_stale_embedding(out, f"layer_{layer}")
+            # reindex still use the out, as we need to put the embedding 'back' to its initial position
+            frontier, filter_frontier, row_idx, col_idx = self.reindex(nodes, out, out_filter, cnt)
             row_idx, col_idx = col_idx, row_idx
             edge_index = torch.stack([row_idx, col_idx], dim=0)
 

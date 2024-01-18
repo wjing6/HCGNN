@@ -386,3 +386,28 @@ class NeighborCache:
         mmap_config['dtype'] = str(data.dtype)
 
         json.dump(mmap_config, open(conf_path, 'w'))
+
+class HiddenEmbeddingCache:
+    '''
+    This class is used to cache hidden embedding of nodes in GNN.
+    '''
+    def __init__(self, size, hidden_size, num_nodes, tag): 
+        self.size = size
+        self.hidden_size = hidden_size
+        self.num_entries = int(self.size // self.hidden_size)
+        self.num_nodes = num_nodes
+        self.tag = tag
+        # tag meas "layer 1", "layer 2" ...
+        self.cache, self.address_table = self.init_by_static_cache()
+
+    def init_by_static_cache(self):
+        cache = torch.zeros(self.num_entries, self.hidden_size, dtype=torch.float32)
+        address_table = torch.full((self.num_nodes,), -1, dtype=torch.int64)
+        # TODO
+        return cache, address_table
+
+    def update(self, batch_inputs, in_indices, in_positions, out_indices):
+        cache_update(self, batch_inputs, in_indices, in_positions, out_indices)
+    
+    def evit_policy(self):
+        pass

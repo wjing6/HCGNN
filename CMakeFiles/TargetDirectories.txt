@@ -1,0 +1,2 @@
+/root/gpuDirect/ginex-plus/CMakeFiles/edit_cache.dir
+/root/gpuDirect/ginex-plus/CMakeFiles/rebuild_cache.dir

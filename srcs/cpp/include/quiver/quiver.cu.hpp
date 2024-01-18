@@ -383,6 +383,7 @@ class quiver<T, CUDA>
     {
         constexpr int BLOCK_WARPS = 128 / WARP_SIZE;
         // the number of rows each thread block will cover
+        // finally the 'output_begin' contains the global ID of sampled node
         constexpr int TILE_SIZE = BLOCK_WARPS * 16;
         const dim3 block(WARP_SIZE, BLOCK_WARPS);
         const dim3 grid((input_size + TILE_SIZE - 1) / TILE_SIZE);
