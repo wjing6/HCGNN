@@ -397,7 +397,7 @@ class HiddenEmbeddingCache:
         self.num_entries = int(self.size // self.hidden_size)
         self.num_nodes = num_nodes
         self.tag = tag
-        # tag meas "layer 1", "layer 2" ...
+        # tag means "layer 1", "layer 2" ...
         self.cache, self.address_table = self.init_by_static_cache()
 
     def init_by_static_cache(self):

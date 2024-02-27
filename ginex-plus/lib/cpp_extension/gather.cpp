@@ -1,6 +1,7 @@
 #include <ATen/ATen.h>
 #include <Python.h>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <errno.h>
 #include <fcntl.h>
@@ -387,6 +388,7 @@ gather_ginex_async(std::string feature_file, torch::Tensor idx,
     io_destroy(ctx);
     return std::make_tuple(result, not_in_cache);
 }
+
 
 int64_t tensor_size(torch::Tensor transfer_tensor, int element_size)
 {

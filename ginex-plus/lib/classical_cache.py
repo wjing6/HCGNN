@@ -1,5 +1,6 @@
 from collections import OrderedDict
-
+import numpy as np
+import torch
 
 class s3FIFO:
     # quick demotion and lazy promotion
@@ -75,12 +76,14 @@ class s3FIFO:
 
 
 class FIFO:
-    def __init__(self, cache_entries, tag, fifo_ratio=0.1):
+    def __init__(self, cache_entries, tag, cache_entry_status, feature_dim, fifo_ratio=0.1):
         self.num_entries = cache_entries
         self.tag = tag
         self.fifo_ratio = fifo_ratio
+        self.cache_entry_status = cache_entry_status
         self.cache_size = int(fifo_ratio * cache_entries)
-        self.cache = []
+        self.cache = [] # the cached idx
+        self.cache_data = torch.zeros(self.cache_size, feature_dim, dtype=torch.float32)
         print("In layer {tag}, the cache entry number is {:d}".format(
             self.num_entries, tag=self.tag))
 
@@ -89,7 +92,8 @@ class FIFO:
             return True
         else:
             if len(self.cache) == self.cache_size:
-                self.cache.pop(0)
+                evit_item = self.cache.pop(0)
+                self.cache_entry_status[evit_item] = 0
                 self.add(key)
             else:
                 self.add(key)
@@ -100,6 +104,7 @@ class FIFO:
             print("try to put an item to a full list, abort")
             return
         self.cache.append(key)
+        self.cache_entry_status[key] = 1
 
     def print_debug(self):
         res = "curr cache item: "
@@ -107,8 +112,53 @@ class FIFO:
             res += str(item)
             res += " ,"
         print(res)
+    
+    def get_hit(self, target_nodes):
+        target_nodes_status = self.cache_entry_status[target_nodes]
+        cache_hit = target_nodes_status > 0
+        target_nodes = np.array(target_nodes)
+        hit_nodes = target_nodes[cache_hit]
+        return len(hit_nodes)
+    
+    def evit_and_place_indice(self, target_nodes):
+        # only used for sampling, not included the updating of feature !
+        target_nodes_status = self.cache_entry_status[target_nodes]
+        cache_no_hit = target_nodes_status == 0
+        pop_num = len(cache_no_hit) + len(self.cache) - self.cache_size
+        if pop_num > 0:
+            evit_item = self.cache[0:pop_num]
+            self.cache = self.cache[pop_num:]
+        target_nodes = np.array(target_nodes)
+        nodes_place = target_nodes[cache_no_hit]
+        self.cache.extend(nodes_place)
+        if pop_num > 0:
+            self.cache_entry_status[evit_item] = 0
+        self.cache_entry_status[nodes_place] = 1
 
+    def evit_and_place(self, target_nodes, target_feature):
+        # batch evit and update!
+        assert(target_nodes == target_feature.shape[0])
 
+        target_nodes_status = self.cache_entry_status[target_nodes]
+        cache_no_hit = target_nodes_status == 0
+        pop_num = len(cache_no_hit) + len(self.cache) - self.cache_size
+        if pop_num > 0:
+            evit_item = self.cache[0:pop_num]
+            self.cache = self.cache[pop_num:]
+            self.cache_data = self.cache_data[pop_num:,:]
+            print (f"layer: {self.tag}, evit.. pop number: {pop_num}, after pop, the cache shape: {self.cache_data.shape}")
+        target_nodes = np.array(target_nodes)
+        nodes_place = target_nodes[cache_no_hit]
+        self.cache.extend(nodes_place)
+        self.cache_data = torch.cat(self.cache_data, target_feature, dim=0)
+        print (f"after cat, cache shape: {self.cache_data.shape}")
+        if pop_num > 0:
+            self.cache_entry_status[evit_item] = 0
+        self.cache_entry_status[nodes_place] = 1
+
+    @property
+    def get_status(self):
+        return self.cache_entry_status
 
 class LRUCache(OrderedDict):
     def __init__(self, capacity):

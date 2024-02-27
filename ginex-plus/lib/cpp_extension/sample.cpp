@@ -8,6 +8,7 @@
 #include <cstring>
 #include <inttypes.h>
 #include <omp.h>
+#include <cassert>
 #define ALIGNMENT 4096
 
 // return start index of buffer
@@ -34,6 +35,7 @@ std::tuple<int64_t*, int64_t*, int64_t> get_new_neighbor_buffer(int64_t row_coun
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx, 
                   torch::Tensor cache, torch::Tensor cache_table,
+                  torch::Tensor embedding_indice,
                   int64_t num_neighbors, bool replace) {
 
   srand(time(NULL) + 1000 * getpid()); // Initialize random seed.
@@ -50,6 +52,8 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
   auto cache_data = cache.data_ptr<int64_t>();
   auto cache_table_data = cache_table.data_ptr<int64_t>();
 
+  auto embedding_table_indice = embedding_indice.data_ptr<int64_t>();
+
   auto out_rowptr = torch::empty(idx.numel() + 1, idx.options());
   auto out_rowptr_data = out_rowptr.data_ptr<int64_t>();
   out_rowptr_data[0] = 0;
@@ -65,6 +69,7 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
     n_id_map[i] = n;
     n_ids.push_back(i);
   }
+  // put the stale-nid to the map
 
   int64_t n, c, e, row_start, row_end, row_count;
   int64_t start_offset;
@@ -74,22 +79,26 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
 
     for (int64_t i = 0; i < idx.numel(); i++) {
       n = idx_data[i];
-      cache_entry = cache_table_data[n];
-      if (cache_entry >= 0){
-          row_count = cache_data[cache_entry];
-          for (int64_t j = 0; j < row_count; j++){
-            e = cache_entry + 1 + j;
-            c = cache_data[e];
+      if (embedding_table_indice[n] > 0) {
+        // using the historical embedding
+        out_rowptr_data[i + 1] = out_rowptr_data[i];
+        continue;
+      } else {
+        cache_entry = cache_table_data[n];
+        if (cache_entry >= 0){
+            row_count = cache_data[cache_entry];
+            for (int64_t j = 0; j < row_count; j++){
+              e = cache_entry + 1 + j;
+              c = cache_data[e];
 
-            // if c does not exist in n_id_map
-            if (n_id_map.count(c) == 0) {
-              n_id_map[c] = n_ids.size();
-              n_ids.push_back(c);
+              // if c does not exist in n_id_map
+              if (n_id_map.count(c) == 0) {
+                n_id_map[c] = n_ids.size();
+                n_ids.push_back(c);
+              }
+              cols[i].push_back(std::make_tuple(n_id_map[c], rowptr_data[n] + j));
             }
-            cols[i].push_back(std::make_tuple(n_id_map[c], rowptr_data[n] + j));
-          }
-      }
-      else {
+        } else {
           row_start = rowptr_data[n], row_end = rowptr_data[n + 1];
           row_count = row_end - row_start;
 
@@ -110,8 +119,9 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
             }
             cols[i].push_back(std::make_tuple(n_id_map[c], row_start + j));
           }
+        }
+        out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
       }
-      out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
     }
   }
  /// 
@@ -119,116 +129,124 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
 
     for (int64_t i = 0; i < idx.numel(); i++) {
       n = idx_data[i];
-      cache_entry = cache_table_data[n];
-      if (cache_entry >= 0){
-          row_count = cache_data[cache_entry];
-          for (int64_t j = 0; j < num_neighbors; j++){
-            e = cache_entry + 1 + rand() % row_count;
-            c = cache_data[e];
+      if (embedding_table_indice[n] > 0) {
+        out_rowptr_data[i + 1] = out_rowptr_data[i];
+        continue;
+      } else {
+        cache_entry = cache_table_data[n];
+        if (cache_entry >= 0){
+            row_count = cache_data[cache_entry];
+            for (int64_t j = 0; j < num_neighbors; j++){
+              e = cache_entry + 1 + rand() % row_count;
+              c = cache_data[e];
 
-            // if c does not exist in n_id_map
-            if (n_id_map.count(c) == 0) {
-              n_id_map[c] = n_ids.size();
-              n_ids.push_back(c);
-            }
-            cols[i].push_back(std::make_tuple(n_id_map[c], rowptr_data[n] + j));
-          }
-      }
-      else {
-          row_start = rowptr_data[n], row_end = rowptr_data[n + 1];
-          row_count = row_end - row_start;
-
-          if (row_count > neighbor_buffer_size){
-              free(neighbor_buffer);
-              std::tie(neighbor_buffer, aligned_neighbor_buffer, neighbor_buffer_size) = get_new_neighbor_buffer(row_count);
-          }
-          if (row_count > 0) {
-            start_offset = load_neighbors_into_buffer(col_fd,  row_start, row_count, aligned_neighbor_buffer);
-            for (int64_t j = 0; j < num_neighbors; j++) {
-              e = start_offset + rand() % row_count;
-              c = aligned_neighbor_buffer[e];
-
+              // if c does not exist in n_id_map
               if (n_id_map.count(c) == 0) {
                 n_id_map[c] = n_ids.size();
                 n_ids.push_back(c);
               }
-              cols[i].push_back(std::make_tuple(n_id_map[c], row_start + j));
+              cols[i].push_back(std::make_tuple(n_id_map[c], rowptr_data[n] + j));
             }
-          }
-      }
-      out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
-    }
+        }
+        else {
+            row_start = rowptr_data[n], row_end = rowptr_data[n + 1];
+            row_count = row_end - row_start;
 
-  } else { // Sample without replacement via Robert Floyd algorithm ============
-
-    for (int64_t i = 0; i < idx.numel(); i++) {
-      n = idx_data[i];
-      cache_entry = cache_table_data[n];
-      if (cache_entry >= 0){
-          row_count = cache_data[cache_entry];
-          if (row_count > 0){
-              std::unordered_set<int64_t> perm;
-              if (row_count <= num_neighbors) {
-                for (int64_t j = 0; j < row_count; j++)
-                  perm.insert(j);
-              } 
-              else {
-                for (int64_t j = row_count - num_neighbors; j < row_count; j++) {
-                  if (!perm.insert(rand() % j).second)
-                    perm.insert(j);
-                }
-              }
-
-              for (const int64_t &p : perm) {
-                e = cache_entry + 1 + p;
-                c = cache_data[e];
-
-                if (n_id_map.count(c) == 0) {
-                  n_id_map[c] = n_ids.size();
-                  n_ids.push_back(c);
-                }
-                cols[i].push_back(std::make_tuple(n_id_map[c], rowptr_data[n] + p));
-                //cols[i].push_back(std::make_tuple(n_id_map[c], e));
-              }
-          }
-      }
-      else {
-          row_start = rowptr_data[n], row_end = rowptr_data[n + 1];
-          row_count = row_end - row_start;
-
-          if (row_count > neighbor_buffer_size){
-              free(neighbor_buffer);
-              std::tie(neighbor_buffer, aligned_neighbor_buffer, neighbor_buffer_size) = get_new_neighbor_buffer(row_count);
-          }
-
-          if (row_count > 0){
+            if (row_count > neighbor_buffer_size){
+                free(neighbor_buffer);
+                std::tie(neighbor_buffer, aligned_neighbor_buffer, neighbor_buffer_size) = get_new_neighbor_buffer(row_count);
+            }
+            if (row_count > 0) {
               start_offset = load_neighbors_into_buffer(col_fd,  row_start, row_count, aligned_neighbor_buffer);
-
-              std::unordered_set<int64_t> perm;
-              if (row_count <= num_neighbors) {
-                for (int64_t j = 0; j < row_count; j++)
-                  perm.insert(j);
-              } 
-              else {
-                for (int64_t j = row_count - num_neighbors; j < row_count; j++) {
-                  if (!perm.insert(rand() % j).second)
-                    perm.insert(j);
-                }
-              }
-
-              for (const int64_t &p : perm) {
-                e = start_offset + p;
+              for (int64_t j = 0; j < num_neighbors; j++) {
+                e = start_offset + rand() % row_count;
                 c = aligned_neighbor_buffer[e];
 
                 if (n_id_map.count(c) == 0) {
                   n_id_map[c] = n_ids.size();
                   n_ids.push_back(c);
                 }
-                cols[i].push_back(std::make_tuple(n_id_map[c], row_start + p));
+                cols[i].push_back(std::make_tuple(n_id_map[c], row_start + j));
               }
-          }
+            }
+        }
+        out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
       }
-      out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
+    }
+  } else { // Sample without replacement via Robert Floyd algorithm ============
+    for (int64_t i = 0; i < idx.numel(); i++) {
+      n = idx_data[i];
+      if (embedding_table_indice[n] > 0) {
+        out_rowptr_data[i + 1] = out_rowptr_data[i];
+        continue;
+      } else {
+        cache_entry = cache_table_data[n];
+        if (cache_entry >= 0){
+            row_count = cache_data[cache_entry];
+            if (row_count > 0){
+                std::unordered_set<int64_t> perm;
+                if (row_count <= num_neighbors) {
+                  for (int64_t j = 0; j < row_count; j++)
+                    perm.insert(j);
+                } 
+                else {
+                  for (int64_t j = row_count - num_neighbors; j < row_count; j++) {
+                    if (!perm.insert(rand() % j).second)
+                      perm.insert(j);
+                  }
+                }
+
+                for (const int64_t &p : perm) {
+                  e = cache_entry + 1 + p;
+                  c = cache_data[e];
+
+                  if (n_id_map.count(c) == 0) {
+                    n_id_map[c] = n_ids.size();
+                    n_ids.push_back(c);
+                  }
+                  cols[i].push_back(std::make_tuple(n_id_map[c], rowptr_data[n] + p));
+                  //cols[i].push_back(std::make_tuple(n_id_map[c], e));
+                }
+            }
+        }
+        else {
+            row_start = rowptr_data[n], row_end = rowptr_data[n + 1];
+            row_count = row_end - row_start;
+
+            if (row_count > neighbor_buffer_size){
+                free(neighbor_buffer);
+                std::tie(neighbor_buffer, aligned_neighbor_buffer, neighbor_buffer_size) = get_new_neighbor_buffer(row_count);
+            }
+
+            if (row_count > 0){
+                start_offset = load_neighbors_into_buffer(col_fd,  row_start, row_count, aligned_neighbor_buffer);
+
+                std::unordered_set<int64_t> perm;
+                if (row_count <= num_neighbors) {
+                  for (int64_t j = 0; j < row_count; j++)
+                    perm.insert(j);
+                } 
+                else {
+                  for (int64_t j = row_count - num_neighbors; j < row_count; j++) {
+                    if (!perm.insert(rand() % j).second)
+                      perm.insert(j);
+                  }
+                }
+
+                for (const int64_t &p : perm) {
+                  e = start_offset + p;
+                  c = aligned_neighbor_buffer[e];
+
+                  if (n_id_map.count(c) == 0) {
+                    n_id_map[c] = n_ids.size();
+                    n_ids.push_back(c);
+                  }
+                  cols[i].push_back(std::make_tuple(n_id_map[c], row_start + p));
+                }
+            }
+        }
+        out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
+      }
     }
   }
  ///

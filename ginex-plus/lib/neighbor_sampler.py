@@ -1,5 +1,6 @@
 from typing import List, Optional, Tuple, NamedTuple, Callable
 import os
+from lib.classical_cache import FIFO
 import torch
 from torch import Tensor
 import torch_sparse
@@ -9,9 +10,9 @@ from lib.cpp_extension.wrapper import sample
 import time
 
 
-def sample_adj_ginex(rowptr, col, subset, num_neighbors, replace, cache_data=None, address_table=None):
+def sample_adj_ginex(rowptr, col, subset, num_neighbors, replace, embedding_table = None, cache_data=None, address_table=None):
     rowptr, col, n_id, indptr = sample.sample_adj_ginex(                                                   
-        rowptr, col, subset, cache_data, address_table, num_neighbors, replace)
+        rowptr, col, subset, cache_data, address_table, embedding_table, num_neighbors, replace)
                                  
     out = SparseTensor(rowptr=rowptr, row=None, col=col,                                                 
                        sparse_sizes=(subset.size(0), n_id.size(0)),                                      
@@ -64,6 +65,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
     '''
     def __init__(self, indptr, indices,
                  sizes: List[int], node_idx: Tensor,
+                 embedding_size: List[float],
                  cache_data = None, address_table = None,
                  num_nodes: Optional[int] = None,
                  transform: Callable = None, **kwargs):
@@ -84,6 +86,23 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
         self.sizes = sizes
         self.transform = transform
 
+        if len(embedding_size) != len(sizes) - 2:
+            raise ValueError(
+                'Embedding layer exclude the training node and the bottom feature,\
+                expected sizes of length {} but found {}'.format(
+                    len(sizes) - 2, len(embedding_size)))
+
+        self.exp_name = kwargs['exp_name']
+        self.sb = kwargs['sb']
+        del kwargs['exp_name']
+        del kwargs['sb']
+        self.embedding_cache = {}
+        for i in range(1, len(sizes) - 1):
+            # init the embedding cache
+            # what is the layer_1 ? top down !
+            tmp_tag = 'layer_' + str(i)
+            self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, embedding_size[i - 1])
+        
         if node_idx.dtype == torch.bool:
             node_idx = node_idx.nonzero(as_tuple=False).view(-1)
 
@@ -102,25 +121,33 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
 
         adjs = []
         n_id = batch
-        for size in self.sizes:
-            adj_t, n_id = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, self.cache_data, self.address_table)
-            
+        for layer, size in enumerate(self.sizes):
+            if layer == 0:
+                adj_t, n_id = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, torch.zeros(self.num_nodes, dtype=torch.int64), self.cache_data, self.address_table)
+            else:
+                # get the embedding cache
+                tmp_tag = 'layer_' + str(layer)
+                adj_t, n_id_new =  (self.indptr, self.indices, n_id, size, False, self.embedding_cache[tmp_tag].get_status() ,self.cache_data, self.address_table)
+                self.embedding_cache[tmp_tag].evit_and_place_indice(n_id.tolist())
+                print ("n_id: ", n_id)
+                print ("n_id_new: ", n_id_new)
+                n_id = n_id_new
+
+            # the return n_id excludes the node in embedding!
             e_id = adj_t.storage.value()
             size = adj_t.sparse_sizes()[::-1]
             adjs.append(Adj(adj_t, e_id, size))
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1]
         out = (batch_size, n_id, adjs)
         out = self.transform(*out) if self.transform is not None else out
-        return out
-        # self.lock.acquire()
-        # batch_count = self.batch_count.item()
-        # n_id_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_ids_' + str(self.batch_count.item()) + '.pth')
-        # adjs_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_adjs_' + str(self.batch_count.item()) + '.pth')
-        # self.batch_count += 1
-        # self.lock.release()
+        self.lock.acquire()
+        n_id_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_ids_' + str(self.batch_count.item()) + '.pth')
+        adjs_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_adjs_' + str(self.batch_count.item()) + '.pth')
+        self.batch_count += 1
+        self.lock.release()
 
-        # torch.save(n_id, n_id_filename)
-        # torch.save(adjs, adjs_filename)
+        torch.save(n_id, n_id_filename)
+        torch.save(adjs, adjs_filename)
 
 
     def __repr__(self):

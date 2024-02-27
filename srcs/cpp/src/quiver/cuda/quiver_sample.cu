@@ -115,6 +115,8 @@ class TorchQuiver
     std::tuple<torch::Tensor, torch::Tensor>
     sample_neighbor(int stream_num, const torch::Tensor &vertices, int k)
     {
+        // according the embedding indice, filter the nodes
+        // num_nodes: 
         cudaStream_t stream = 0;
         if (!pool_.empty()) { stream = (pool_)[stream_num]; }
         const auto policy = thrust::cuda::par.on(stream);
@@ -122,7 +124,7 @@ class TorchQuiver
         thrust::device_vector<T> inputs;
         thrust::device_vector<T> outputs;
         thrust::device_vector<T> output_counts;
-        sample_kernel(stream, vertices, k, inputs, outputs, output_counts);
+        sample_kernel(stream, vertices, k, inputs, outputs, output_counts, num_nodes, exist_indice_ptr);
         torch::Tensor neighbors =
             torch::empty(outputs.size(), vertices.options());
         torch::Tensor counts =

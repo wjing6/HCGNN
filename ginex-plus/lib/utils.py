@@ -11,6 +11,7 @@ def gather_ginex(feature_file, idx, feature_dim, cache):
 def gather_ginex_async(feature_file, idx, feature_dim, cache):
     return gather.gather_ginex_async(feature_file, idx, feature_dim, cache.cache, cache.address_table)
 
+
 def uvm_alloc_indice(num_nodes):
     return gather.alloc_uvm_indice(num_nodes)
 

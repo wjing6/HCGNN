@@ -19,10 +19,11 @@ from datetime import datetime
 
 
 import quiver
+import json
 from quiver.pyg import GraphSageSampler
 from lib.cache import FeatureCache
 from lib.utils import *
-
+from lib.neighbor_sampler import GinexNeighborSampler
 
 def prepareMMAPFeature(dataset_path, features):
     os.makedirs(dataset_path, exist_ok=True)
@@ -105,7 +106,6 @@ csr_topo = quiver.CSRTopo(data.edge_index)
 quiver_sampler = GraphSageSampler(csr_topo, sizes=[15, 10, 5], device=0, mode='UVA')
 
 
-
 def inspect(i, last, mode = "train"):
     global sample_time
     global ssdW_time
@@ -126,7 +126,6 @@ def inspect(i, last, mode = "train"):
             return cache, initial_cache_indices.cpu()
         else:
             torch.cuda.empty_cache()
-
 
     start_idx = i * args.batch_size * args.sb_size 
     end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
