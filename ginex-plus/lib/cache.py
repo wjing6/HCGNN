@@ -10,19 +10,19 @@ from tqdm import tqdm
 
 
 def save(i, in_indices, in_indices_, out_indices, exp_name, sb):
-    path = '/data01/liuyibo/trace/' + exp_name + '/sb_' + str(sb) + '_update_' + str(i) + '.pth'
+    path = './trace/' + exp_name + '/sb_' + str(sb) + '_update_' + str(i) + '.pth'
     torch.save((in_indices.cpu(), in_indices_.cpu(), out_indices.cpu()), path)
 
 
 def load(n_id_list, indices, exp_name, sb):
     for i in indices:
-        n_id = torch.load('/data01/liuyibo/trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth')
+        n_id = torch.load('./trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth')
         n_id_list[i] = n_id
 
 
 def load_into_queue(q, indices, exp_name, sb):
     for i in indices:
-        q.put(torch.load('/data01/liuyibo/trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth'))
+        q.put(torch.load('./trace/' + exp_name + '/sb_' + str(sb) + '_ids_' + str(i) + '.pth'))
 
 
 def send(q, n_id_list, indices):

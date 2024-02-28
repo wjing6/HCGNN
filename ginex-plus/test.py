@@ -1,10 +1,17 @@
 import csv
 import pandas as pd
-a = [1,2,3]
-b = [4,5,6]    
-
-#字典中的key值即为csv中列名
-dataframe = pd.DataFrame({'a_name':a,'b_name':b})
-
-#将DataFrame存储为csv,index表示是否显示行名，default=True
-dataframe.to_csv("test.csv",index=False,sep=',', header=False)
+import torch
+import numpy as np
+a = torch.tensor([1,2,3])
+b = torch.tensor([2, 3])
+c = torch.tensor([[1, 3], [4, 5], [2, 7]])
+cache_no_hit = a == 1
+print (a[cache_no_hit].shape[0])
+print (len(cache_no_hit))
+a = np.array(a.tolist())
+for b_single in b:
+    print (b_single)
+indice = [0, 1]
+c[indice] = torch.tensor([[2, 3], [5, 2]])
+print (c)
+print (a[~cache_no_hit])
