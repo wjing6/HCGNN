@@ -82,7 +82,7 @@ class FIFO:
         self.num_entries = cache_entries
         self.tag = tag
         self.fifo_ratio = fifo_ratio
-        self.cache_entry_status = torch.zeros(self.num_entries, dtype=torch.int32)
+        self.cache_entry_status = torch.zeros(self.num_entries, dtype=torch.int64)
         self.cache_size = int(fifo_ratio * cache_entries)
         self.cache = []  # the cached idx
         self.only_indice = only_indice
@@ -90,7 +90,7 @@ class FIFO:
             self.cache_data = torch.zeros(
                 self.cache_size, feature_dim, dtype=torch.float32)
         print("In layer {tag}, the cache entry number is {:d}".format(
-            self.num_entries, tag=self.tag))
+            self.cache_size, tag=self.tag))
 
     def get(self, key):
         if key in self.cache:
@@ -193,9 +193,7 @@ class FIFO:
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         return range(pop_num)
     
-    @property
-    def get_status(self):
-        return self.cache_entry_status
+    
 
 
 class LRUCache(OrderedDict):

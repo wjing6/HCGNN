@@ -26,10 +26,11 @@ argparser.add_argument('--num-hiddens', type=int, default=256)
 argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
 argparser.add_argument('--exp-name', type=str, default=None)
 argparser.add_argument('--sizes', type=str, default='10,10,10')
+argparser.add_argument('--embedding-sizes', type=str, default='0.02,0.01')
 argparser.add_argument('--sb-size', type=int, default='1000')
 argparser.add_argument('--feature-cache-size', type=float, default=500000000)
 argparser.add_argument('--trace-load-num-threads', type=int, default=4)
-argparser.add_argument('--neigh-cache-size', type=int, default=45000000000)
+argparser.add_argument('--neigh-cache-size', type=int, default=6000000000)
 argparser.add_argument('--ginex-num-threads', type=int,
                        default=os.cpu_count()*8)
 argparser.add_argument('--verbose', dest='verbose',
@@ -40,7 +41,7 @@ args = argparser.parse_args()
 
 # Set args/environment variables/path
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
-dataset_path = os.path.join('./dataset', args.dataset + '-ginex')
+dataset_path = os.path.join('/mnt/bd/flowwalker/Ginex/dataset', args.dataset + '-ginex')
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 
 # Prepare dataset
@@ -56,9 +57,12 @@ num_nodes = dataset.num_nodes
 num_features = dataset.num_features
 features = dataset.features_path
 num_classes = dataset.num_classes
+embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
+embedding_sizes = [int(rate * num_nodes) for rate in embedding_rate]
 mmapped_features = dataset.get_mmapped_features()
 indptr, indices = dataset.get_adj_mat()
 labels = dataset.get_labels()
+
 
 if args.verbose:
     tqdm.write('Done!')
@@ -67,7 +71,7 @@ if args.verbose:
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
 model = SAGE(num_features, args.num_hiddens,
-             num_classes, num_layers=len(sizes))
+             num_classes, num_layers=len(sizes), embedding_size=embedding_sizes)
 model = model.to(device)
 
 
@@ -123,10 +127,12 @@ def inspect(i, last, mode='train'):
     start_idx = i * args.batch_size * args.sb_size
     end_idx = min((i+1) * args.batch_size * args.sb_size, node_idx.numel())
     loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, node_idx=node_idx[start_idx:end_idx],
-                                  embedding_size=[0.01], sizes=sizes, num_nodes=num_nodes,
+                                  embedding_size=embedding_rate, sizes=sizes,
                                   cache_data=neighbor_cache, address_table=neighbor_cachetable,
+                                  num_nodes=num_nodes,
+                                  cache_dim=args.num_hiddens,
                                   batch_size=args.batch_size,
-                                  shuffle=False, num_workers=args.num_workers, prefetch_factor=1 << 20)
+                                  shuffle=False, num_workers=0)
 
     for step, _ in enumerate(loader):
         if i != 0 and step == 0:

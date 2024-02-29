@@ -10,8 +10,8 @@ class SAGE(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, embedding_size: List[int]):
         super(SAGE, self).__init__()
 
-        if len(embedding_size) != num_layers - 2:
-            raise ValueError(f"embedding size should be {num_layers - 2} but got {len(embedding_size)}")
+        if len(embedding_size) != num_layers - 1:
+            raise ValueError(f"embedding size should be {num_layers - 1} but got {len(embedding_size)}")
 
         self.num_layers = num_layers
         self.embedding_cache = {}
@@ -48,8 +48,8 @@ class SAGE(torch.nn.Module):
             # 根据 convs 定义, 实际得到的 x 维度与不裁剪应该是一致的
             print (f"x_target shape: {x_target.shape}, x shape: {x.shape}")
             x_target_nid = n_id[x_target]
-            if i < self.num_layers - 2:
-                pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 2)
+            if i < self.num_layers - 1:
+                pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
                 x[pull_nodes_idx] = pull_embeddings
                 print (f"after pull, x shape: {x.shape}")
             if i != self.num_layers - 1:

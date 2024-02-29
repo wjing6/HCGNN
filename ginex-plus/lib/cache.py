@@ -111,7 +111,7 @@ class FeatureCache:
             loader[t].join()
         self.ReadTime += time.time() - read_start
         if self.verbose:
-            tqdm.write('Done!')
+            tqdm.write('Pass 1 and 2, Done!')
         
         # Pass 1
         if self.verbose:
