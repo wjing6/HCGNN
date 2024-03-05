@@ -41,7 +41,7 @@ args = argparser.parse_args()
 
 # Set args/environment variables/path
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
-dataset_path = os.path.join('/mnt/bd/flowwalker/Ginex/dataset', args.dataset + '-ginex')
+dataset_path = os.path.join('/data01/liuyibo', args.dataset + '-ginex')
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 
 # Prepare dataset
@@ -71,7 +71,7 @@ if args.verbose:
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
 model = SAGE(num_features, args.num_hiddens,
-             num_classes, num_layers=len(sizes), embedding_size=embedding_sizes)
+             num_classes, num_layers=len(sizes), num_nodes=num_nodes, device=device, embedding_rate=embedding_rate)
 model = model.to(device)
 
 
@@ -93,7 +93,7 @@ def inspect(i, last, mode='train'):
         effective_sb_size = int((node_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
         cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes,
-                             mmapped_features, num_features, args.exp_name, i - 1, args.verbose)
+                             mmapped_features, num_features, args.exp_name, i - 1, args.verbose, False)
         # Pass 1 and 2 are executed before starting sb sample.
         # We overlap only the pass 3 of changeset precomputation,
         # which is the most time consuming part, with sb sample.
@@ -166,7 +166,7 @@ def trace_load(q, indices, sb):
 
 
 def gather(gather_q, n_id, cache, batch_size):
-    batch_inputs = gather_ginex(features, n_id, num_features, cache)
+    batch_inputs, _ = gather_ginex(features, n_id, num_features, cache)
     batch_labels = labels[n_id[:batch_size]]
     gather_q.put((batch_inputs, batch_labels))
 
@@ -247,7 +247,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 out_indices_q.put(out_indices)
 
             # Gather
-            batch_inputs = gather_ginex(features, n_id, num_features, cache)
+            batch_inputs, _ = gather_ginex(features, n_id, num_features, cache)
             batch_labels = labels[n_id[:batch_size]]
 
             # Cache
@@ -287,7 +287,8 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         adjs = [adj.to(device) for adj in adjs_host]
 
         # Forward
-        out = model(batch_inputs_cuda, adjs)
+        n_id_cuda = n_id.to(device)
+        out = model(batch_inputs_cuda, adjs, n_id_cuda)
         loss = F.nll_loss(out, batch_labels_cuda.long())
 
         # Backward

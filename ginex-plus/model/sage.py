@@ -7,17 +7,18 @@ from lib.classical_cache import FIFO
 import numpy as np
 
 class SAGE(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, embedding_size: List[int]):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, device, embedding_rate: List[float]):
         super(SAGE, self).__init__()
 
-        if len(embedding_size) != num_layers - 1:
+        if len(embedding_rate) != num_layers - 1:
             raise ValueError(f"embedding size should be {num_layers - 1} but got {len(embedding_size)}")
 
         self.num_layers = num_layers
         self.embedding_cache = {}
-        for layer in range(len(embedding_size)):
+        self.device = device
+        for layer in range(len(embedding_rate)):
             tmp_tag = 'layer_' + str(layer + 1)
-            self.embedding_cache[tmp_tag] = FIFO(embedding_size[layer], tmp_tag, hidden_channels, 1, only_indice=False)
+            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], only_indice=False)
             # 1 表示 size 值已经在参数'1'给出
 
         self.convs = torch.nn.ModuleList()
@@ -46,11 +47,17 @@ class SAGE(torch.nn.Module):
             # e.g. x_target: [1, 2, 3, 5, 8], in embedding_cache: [3, 5]
             # which means there is no edge_index with 3 and 5
             # 根据 convs 定义, 实际得到的 x 维度与不裁剪应该是一致的
+            # TODO: 这里目前的cache在cpu中, 所以需要在GPU与CPU中不断交换, 改进!
             print (f"x_target shape: {x_target.shape}, x shape: {x.shape}")
-            x_target_nid = n_id[x_target]
+            x_target_nid = n_id[:size[1]]
+            print (f"x_target_nid: {x_target_nid}")
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
-                x[pull_nodes_idx] = pull_embeddings
+                if pull_nodes_idx.shape[0] != 0:
+                    if not pull_nodes_idx.is_cuda:
+                        pull_nodes_idx = pull_nodes_idx.to(self.device)
+                        pull_embeddings = pull_embeddings.to(self.device)
+                    x[pull_nodes_idx] = pull_embeddings
                 print (f"after pull, x shape: {x.shape}")
             if i != self.num_layers - 1:
                 x = F.relu(x)
@@ -61,15 +68,20 @@ class SAGE(torch.nn.Module):
         # push the updating embedding into the cache and pull the stale embedding to the corresponding 'tensor'
         # 'x_target' include all the nodes, we need to fetch the embedding with the idx in 'x_target'
         # 'push_embedding' corresponds with 'push_idx'
-        pull_node_idx, pull_nodes, push_node_idx, push_nodes = self.embedding_cache[layer].get_hit_nodes(x_target)
+        if full_embeddings.is_cuda:
+            full_embeddings = full_embeddings.cpu()
+            x_target = x_target.cpu()
+        layer_tag = 'layer_' + str(layer)
+        pull_node_idx, pull_nodes, push_node_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target)
         # pull_node_idx 对应 cache 中的 idx, 还需要根据 pull_nodes 得到对应 x_target 位置
-        push_embeddings = full_embeddings.index_select(0, push_node_idx)
-        pull_node_embeddings = torch.tensor(self.embedding_cache[layer]).index_select(0, pull_node_idx)
-        self.embedding_cache[layer].evit_and_place(push_nodes, push_embeddings)
+        push_embeddings = full_embeddings.index_select(0, torch.tensor(push_node_idx))
+        pull_node_embeddings = self.embedding_cache[layer_tag].cache_data.index_select(0, torch.tensor(pull_node_idx))
+        self.embedding_cache[layer_tag].evit_and_place(torch.tensor(push_nodes), push_embeddings)
         pull_node_idx_in_target = []
         # TODO: naive implementation, need improve!
         for node in pull_nodes:
-            pull_node_idx_in_target.append(np.where(x_target == node)[0].squeeze())
+            pull_node_idx_in_target.append(int(np.where(x_target == node)[0]))
+        print (f"pull node idx: {pull_node_idx_in_target}")
         pull_node_idx_in_target = torch.tensor(pull_node_idx_in_target)
         return pull_node_idx_in_target, pull_node_embeddings
 

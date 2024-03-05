@@ -119,6 +119,8 @@ class FIFO:
         print(res)
 
     def get_hit(self, target_nodes):
+        if (target_nodes.is_cuda):
+            target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status > 0
         target_nodes = np.array(target_nodes)
@@ -127,6 +129,7 @@ class FIFO:
 
     def evit_and_place_indice(self, target_nodes):
         # only used for sampling, not included the updating of feature !
+        # now only support cpu..
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == 0
         target_nodes = np.array(target_nodes)
@@ -148,8 +151,10 @@ class FIFO:
         if self.only_indice:
             raise ValueError(
                 "only_indice is True, you should not update the feature data. Please use evit_and_place_indice")
-        assert (target_nodes == target_feature.shape[0])
-
+        assert (target_nodes.shape[0] == target_feature.shape[0])
+        if (target_nodes.is_cuda):
+            target_nodes = target_nodes.cpu()
+            target_feature = target_feature.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == 0
         target_nodes = np.array(target_nodes)
@@ -166,7 +171,7 @@ class FIFO:
         target_nodes = np.array(target_nodes)
         nodes_place = target_nodes[cache_no_hit]
         self.cache.extend(nodes_place)
-        self.cache_data = torch.cat(self.cache_data, target_feature, dim=0)
+        self.cache_data = torch.cat((self.cache_data, target_feature), dim=0)
         print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
             self.cache_entry_status[evit_item] = 0
@@ -174,6 +179,8 @@ class FIFO:
 
     def get_hit_nodes(self, target_nodes):
         # return the node that in the embedding cache(will use the stale representation)
+        if (target_nodes.is_cuda):
+            target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status > 0
         target_node_idx = np.array(range(len(target_nodes)))
@@ -186,6 +193,8 @@ class FIFO:
 
     def get_pop_idx(self, target_nodes):
         # for FIFO, get_pop_idx simply computes the pop_num and return range(pop_num)
+        if (target_nodes.is_cuda):
+            target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == 0
         target_nodes = np.array(target_nodes)
