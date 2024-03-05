@@ -23,7 +23,7 @@ import json
 from quiver.pyg import GraphSageSampler
 from lib.cache import FeatureCache
 from lib.utils import *
-from lib.neighbor_sampler import GinexNeighborSampler
+from model.sage_ginex import SAGE
 
 def prepareMMAPFeature(dataset_path, features):
     os.makedirs(dataset_path, exist_ok=True)
@@ -57,10 +57,10 @@ read_time = 0
 argparser = argparse.ArgumentParser()
 argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
 argparser.add_argument('--num-epochs', type=int, default=10)
-argparser.add_argument('--batch-size', type=int, default=4096)
+argparser.add_argument('--batch-size', type=int, default=1000)
 argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
 argparser.add_argument('--exp-name', type=str, default=None)
-argparser.add_argument('--sb-size', type=int, default='100')
+argparser.add_argument('--sb-size', type=int, default='1000')
 argparser.add_argument('--feature-cache-size', type=float, default=500000000)
 argparser.add_argument('--trace-load-num-threads', type=int, default=4)
 argparser.add_argument('--ginex-num-threads', type=int, default=os.cpu_count()* 2)
