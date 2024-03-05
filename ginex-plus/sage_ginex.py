@@ -12,7 +12,7 @@ from queue import Queue
 from lib.data import *
 from lib.cache import *
 from lib.utils import *
-from lib.neighbor_sampler import GinexNeighborSampler
+from lib.neighbor_sampler_ginex import GinexNeighborSampler
 from model.sage_ginex import SAGE
 
 # Parse arguments
