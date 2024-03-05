@@ -50,7 +50,6 @@ class SAGE(torch.nn.Module):
             # TODO: 这里目前的cache在cpu中, 所以需要在GPU与CPU中不断交换, 改进!
             print (f"x_target shape: {x_target.shape}, x shape: {x.shape}")
             x_target_nid = n_id[:size[1]]
-            print (f"x_target_nid: {x_target_nid}")
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
                 if pull_nodes_idx.shape[0] != 0:
@@ -58,7 +57,6 @@ class SAGE(torch.nn.Module):
                         pull_nodes_idx = pull_nodes_idx.to(self.device)
                         pull_embeddings = pull_embeddings.to(self.device)
                     x[pull_nodes_idx] = pull_embeddings
-                print (f"after pull, x shape: {x.shape}")
             if i != self.num_layers - 1:
                 x = F.relu(x)
                 x = F.dropout(x, p=0.5, training=self.training)
@@ -74,14 +72,13 @@ class SAGE(torch.nn.Module):
         layer_tag = 'layer_' + str(layer)
         pull_node_idx, pull_nodes, push_node_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target)
         # pull_node_idx 对应 cache 中的 idx, 还需要根据 pull_nodes 得到对应 x_target 位置
-        push_embeddings = full_embeddings.index_select(0, torch.tensor(push_node_idx))
+        push_embeddings = full_embeddings.index_select(0, torch.tensor(push_node_idx)).clone().detach()
         pull_node_embeddings = self.embedding_cache[layer_tag].cache_data.index_select(0, torch.tensor(pull_node_idx))
         self.embedding_cache[layer_tag].evit_and_place(torch.tensor(push_nodes), push_embeddings)
         pull_node_idx_in_target = []
         # TODO: naive implementation, need improve!
         for node in pull_nodes:
             pull_node_idx_in_target.append(int(np.where(x_target == node)[0]))
-        print (f"pull node idx: {pull_node_idx_in_target}")
         pull_node_idx_in_target = torch.tensor(pull_node_idx_in_target)
         return pull_node_idx_in_target, pull_node_embeddings
 

@@ -166,9 +166,10 @@ def trace_load(q, indices, sb):
 
 
 def gather(gather_q, n_id, cache, batch_size):
+    # TODO: Reducing n_id transfers
     batch_inputs, _ = gather_ginex(features, n_id, num_features, cache)
     batch_labels = labels[n_id[:batch_size]]
-    gather_q.put((batch_inputs, batch_labels))
+    gather_q.put((batch_inputs, batch_labels, n_id))
 
 
 def delete_trace(i):
@@ -255,7 +256,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 
         if idx != 0:
             # Gather
-            (batch_inputs, batch_labels) = gather_q.get()
+            (batch_inputs, batch_labels, n_id) = gather_q.get()
 
             # Cache
             in_indices = in_indices_q.get()

@@ -134,7 +134,6 @@ class FIFO:
         cache_no_hit = target_nodes_status == 0
         target_nodes = np.array(target_nodes)
         no_hit_nodes = target_nodes[cache_no_hit]
-        print (f"no hit number: {no_hit_nodes.shape[0]}, target node number: {target_nodes.shape[0]}")
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         if pop_num > 0:
             evit_item = self.cache[0:pop_num]
@@ -166,8 +165,6 @@ class FIFO:
             evit_item = self.cache[0:pop_num]
             self.cache = self.cache[pop_num:]
             self.cache_data = self.cache_data[pop_num:, :]
-            print(
-                f"layer: {self.tag}, evit.. pop number: {pop_num}, after pop, the cache shape: {self.cache_data.shape}")
         target_nodes = np.array(target_nodes)
         nodes_place = target_nodes[cache_no_hit]
         self.cache.extend(nodes_place)
