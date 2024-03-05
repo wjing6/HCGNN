@@ -8,13 +8,12 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import threading
 from queue import Queue
-from sage import SAGE
 
 from lib.data import *
 from lib.cache import *
 from lib.utils import *
 from lib.neighbor_sampler import GinexNeighborSampler
-
+from model.sage_ginex import SAGE
 
 # Parse arguments
 argparser = argparse.ArgumentParser()
@@ -29,7 +28,7 @@ argparser.add_argument('--sizes', type=str, default='10,10,10')
 argparser.add_argument('--sb-size', type=int, default='1000')
 argparser.add_argument('--feature-cache-size', type=float, default=500000000)
 argparser.add_argument('--trace-load-num-threads', type=int, default=4)
-argparser.add_argument('--neigh-cache-size', type=int, default=45000000000)
+argparser.add_argument('--neigh-cache-size', type=int, default=6000000000)
 argparser.add_argument('--ginex-num-threads', type=int, default=os.cpu_count()*8)
 argparser.add_argument('--verbose', dest='verbose', default=False, action='store_true')
 argparser.add_argument('--train-only', dest='train_only', default=False, action='store_true')
@@ -37,7 +36,7 @@ args = argparser.parse_args()
 
 # Set args/environment variables/path
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
-dataset_path = os.path.join('./dataset', args.dataset + '-ginex')
+dataset_path = os.path.join('/data01/liuyibo', args.dataset + '-ginex')
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 
 # Prepare dataset
@@ -70,8 +69,8 @@ model = model.to(device)
 def inspect(i, last, mode='train'):
     # Same effect of `sysctl -w vm.drop_caches=1`
     # Requires sudo
-    with open('/proc/sys/vm/drop_caches', 'w') as stream:
-        stream.write('1\n')
+    # with open('/proc/sys/vm/drop_caches', 'w') as stream:
+    #   stream.write('1\n')
 
     if mode == 'train':
         node_idx = dataset.shuffled_train_idx
