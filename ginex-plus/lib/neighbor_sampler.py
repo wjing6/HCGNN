@@ -125,12 +125,11 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
         for layer, size in enumerate(self.sizes):
             if layer == 0:
                 adj_t, n_id = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, torch.zeros(self.num_nodes, dtype=torch.int64), self.cache_data, self.address_table)
-                print ("n_id: ", n_id)
             else:
                 # get the embedding cache
                 tmp_tag = 'layer_' + str(layer)
                 adj_t, n_id_new = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, self.embedding_cache[tmp_tag].cache_entry_status, self.cache_data, self.address_table)
-                self.embedding_cache[tmp_tag].evit_and_place_indice(n_id.tolist())
+                self.embedding_cache[tmp_tag].evit_and_place_indice(n_id)
                 n_id = n_id_new
 
             # the return n_id excludes the node in embedding!

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import threading
 from queue import Queue
-
+import pandas as pd
 from model.sage import SAGE
 from lib.data import *
 from lib.cache import *
@@ -26,7 +26,7 @@ argparser.add_argument('--num-hiddens', type=int, default=256)
 argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
 argparser.add_argument('--exp-name', type=str, default=None)
 argparser.add_argument('--sizes', type=str, default='10,10,10')
-argparser.add_argument('--embedding-sizes', type=str, default='0.02,0.01')
+argparser.add_argument('--embedding-sizes', type=str, default='0.01,0.005')
 argparser.add_argument('--sb-size', type=int, default='1000')
 argparser.add_argument('--feature-cache-size', type=float, default=500000000)
 argparser.add_argument('--trace-load-num-threads', type=int, default=4)
@@ -38,6 +38,7 @@ argparser.add_argument('--verbose', dest='verbose',
 argparser.add_argument('--train-only', dest='train_only',
                        default=False, action='store_true')
 args = argparser.parse_args()
+
 
 # Set args/environment variables/path
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
@@ -63,6 +64,9 @@ mmapped_features = dataset.get_mmapped_features()
 indptr, indices = dataset.get_adj_mat()
 labels = dataset.get_labels()
 
+df = pd.DataFrame(columns=['batch','loss','accuracy'])
+log_file = "./log_" + str(embedding_rate[0]) + "_" + str(embedding_rate[1]) + "_" + "train_acc.csv"
+df.to_csv(log_file,index=False)
 
 if args.verbose:
     tqdm.write('Done!')
@@ -300,8 +304,12 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 
         # Free
         total_loss += float(loss)
-        total_correct += int(out.argmax(dim=-
-                             1).eq(batch_labels_cuda.long()).sum())
+        correct_in_batch = int(out.argmax(dim=-1).eq(batch_labels_cuda.long()).sum())
+        total_correct += correct_in_batch
+        res = [idx, loss, float(correct_in_batch / batch_labels_cuda.shape[0])]
+        data = pd.DataFrame([res])
+        data.to_csv(log_file, mode='a',header=False,index=False)
+        
         n_id = n_id_q.get()
         del (n_id)
         if idx == 0:

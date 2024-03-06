@@ -48,7 +48,6 @@ class SAGE(torch.nn.Module):
             # which means there is no edge_index with 3 and 5
             # 根据 convs 定义, 实际得到的 x 维度与不裁剪应该是一致的
             # TODO: 这里目前的cache在cpu中, 所以需要在GPU与CPU中不断交换, 改进!
-            print (f"x_target shape: {x_target.shape}, x shape: {x.shape}")
             x_target_nid = n_id[:size[1]]
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)

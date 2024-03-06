@@ -123,7 +123,6 @@ class FIFO:
             target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status > 0
-        target_nodes = np.array(target_nodes)
         hit_nodes = target_nodes[cache_hit]
         return len(hit_nodes)
 
@@ -132,15 +131,14 @@ class FIFO:
         # now only support cpu..
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == 0
-        target_nodes = np.array(target_nodes)
         no_hit_nodes = target_nodes[cache_no_hit]
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         if pop_num > 0:
             evit_item = self.cache[0:pop_num]
             self.cache = self.cache[pop_num:]
-        target_nodes = np.array(target_nodes)
+        
         nodes_place = target_nodes[cache_no_hit]
-        self.cache.extend(nodes_place)
+        self.cache.extend(nodes_place.tolist())
         if pop_num > 0:
             self.cache_entry_status[evit_item] = 0
         self.cache_entry_status[nodes_place] = 1
@@ -151,12 +149,14 @@ class FIFO:
             raise ValueError(
                 "only_indice is True, you should not update the feature data. Please use evit_and_place_indice")
         assert (target_nodes.shape[0] == target_feature.shape[0])
+        if (target_nodes.shape[0] == 0):
+            print("all hit.. exit..")
+            return
         if (target_nodes.is_cuda):
             target_nodes = target_nodes.cpu()
             target_feature = target_feature.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == 0
-        target_nodes = np.array(target_nodes)
         no_hit_nodes = target_nodes[cache_no_hit]
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
@@ -165,12 +165,12 @@ class FIFO:
             evit_item = self.cache[0:pop_num]
             self.cache = self.cache[pop_num:]
             self.cache_data = self.cache_data[pop_num:, :]
-        target_nodes = np.array(target_nodes)
         nodes_place = target_nodes[cache_no_hit]
-        self.cache.extend(nodes_place)
+        self.cache.extend(nodes_place.tolist())
         self.cache_data = torch.cat((self.cache_data, target_feature), dim=0)
         print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
+            print (f"status: {self.cache_entry_status}, evit_item: {evit_item}")
             self.cache_entry_status[evit_item] = 0
         self.cache_entry_status[nodes_place] = 1
 
@@ -180,8 +180,7 @@ class FIFO:
             target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status > 0
-        target_node_idx = np.array(range(len(target_nodes)))
-        target_nodes = np.array(target_nodes)
+        target_node_idx = torch.tensor(range(len(target_nodes)))
         hit_nodes_idx = target_node_idx[cache_hit]
         hit_nodes = target_nodes[cache_hit]
         no_hit_nodes = target_nodes[~cache_hit]
@@ -194,7 +193,6 @@ class FIFO:
             target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == 0
-        target_nodes = np.array(target_nodes)
         no_hit_nodes = target_nodes[cache_no_hit]
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         return range(pop_num)
