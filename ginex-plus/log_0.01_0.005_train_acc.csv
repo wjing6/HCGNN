@@ -4830,4 +4830,3 @@ batch,loss,accuracy
 204,"tensor(3.0261, device='cuda:0', grad_fn=<NllLossBackward0>)",0.307
 205,"tensor(3.0298, device='cuda:0', grad_fn=<NllLossBackward0>)",0.313
 206,"tensor(3.3440, device='cuda:0', grad_fn=<NllLossBackward0>)",0.292
-207,"tensor(5.3044, device='cuda:0', grad_fn=<NllLossBackward0>)",0.055865921787709494

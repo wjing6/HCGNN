@@ -90,6 +90,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
         self.sizes = sizes
         self.transform = transform
 
+        self.embedding_indice_update_timer = 0
         if len(embedding_size) != len(sizes) - 1:
             raise ValueError(
                 'Embedding layer excludes the training node and the bottom feature,\
@@ -129,7 +130,9 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
                 # get the embedding cache
                 tmp_tag = 'layer_' + str(layer)
                 adj_t, n_id_new = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, self.embedding_cache[tmp_tag].cache_entry_status, self.cache_data, self.address_table)
+                embedding_indice_start = time.time()
                 self.embedding_cache[tmp_tag].evit_and_place_indice(n_id)
+                self.embedding_indice_update_timer += time.time() - embedding_indice_start
                 n_id = n_id_new
 
             # the return n_id excludes the node in embedding!
@@ -151,6 +154,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
 
     def __repr__(self):
         return '{}(sizes={})'.format(self.__class__.__name__, self.sizes)
+    
 
 
 class MMAPNeighborSampler(torch.utils.data.DataLoader):

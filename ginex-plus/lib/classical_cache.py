@@ -197,6 +197,11 @@ class FIFO:
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         return range(pop_num)
     
+    def reset(self):
+        self.cache_entry_status = torch.zeros(self.num_entries, dtype=torch.int64)
+        self.cache = []  # the cached idx
+        print(f"Reset the cache..")
+    
     
 
 

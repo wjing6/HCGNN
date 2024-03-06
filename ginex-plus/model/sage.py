@@ -5,13 +5,14 @@ from torch_geometric.nn import SAGEConv
 from typing import List
 from lib.classical_cache import FIFO
 import numpy as np
+import time
 
 class SAGE(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, device, embedding_rate: List[float]):
         super(SAGE, self).__init__()
 
         if len(embedding_rate) != num_layers - 1:
-            raise ValueError(f"embedding size should be {num_layers - 1} but got {len(embedding_size)}")
+            raise ValueError(f"embedding size should be {num_layers - 1} but got {len(embedding_rate)}")
 
         self.num_layers = num_layers
         self.embedding_cache = {}
@@ -26,6 +27,11 @@ class SAGE(torch.nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(SAGEConv(hidden_channels, hidden_channels))
         self.convs.append(SAGEConv(hidden_channels, out_channels))
+
+        # timer
+        self.index_select_time = 0
+        self.evit_time = 0
+        self.cache_transfer_time = 0
 
 
     def reset_parameters(self):
@@ -47,14 +53,16 @@ class SAGE(torch.nn.Module):
             # e.g. x_target: [1, 2, 3, 5, 8], in embedding_cache: [3, 5]
             # which means there is no edge_index with 3 and 5
             # 根据 convs 定义, 实际得到的 x 维度与不裁剪应该是一致的
-            # TODO: 这里目前的cache在cpu中, 所以需要在GPU与CPU中不断交换, 改进!
+            # TODO: 这里目前的cache在cpu中, 所以需要在GPU与CPU中不断交换, 需要优化
             x_target_nid = n_id[:size[1]]
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
                 if pull_nodes_idx.shape[0] != 0:
                     if not pull_nodes_idx.is_cuda:
+                        cache_transfer_start = time.time()
                         pull_nodes_idx = pull_nodes_idx.to(self.device)
                         pull_embeddings = pull_embeddings.to(self.device)
+                        self.cache_transfer_time += time.time() - cache_transfer_start
                     x[pull_nodes_idx] = pull_embeddings
             if i != self.num_layers - 1:
                 x = F.relu(x)
@@ -71,9 +79,15 @@ class SAGE(torch.nn.Module):
         layer_tag = 'layer_' + str(layer)
         pull_node_idx, pull_nodes, push_node_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target)
         # pull_node_idx 对应 cache 中的 idx, 还需要根据 pull_nodes 得到对应 x_target 位置
+
+        index_select_timer = time.time()
         push_embeddings = full_embeddings.index_select(0, torch.tensor(push_node_idx)).clone().detach()
         pull_node_embeddings = self.embedding_cache[layer_tag].cache_data.index_select(0, torch.tensor(pull_node_idx))
+        self.index_select_time += time.time() - index_select_timer
+        evit_timer = time.time()
         self.embedding_cache[layer_tag].evit_and_place(torch.tensor(push_nodes), push_embeddings)
+        self.evit_time += time.time() - evit_timer
+
         pull_node_idx_in_target = []
         # TODO: naive implementation, need improve!
         for node in pull_nodes:
@@ -81,7 +95,16 @@ class SAGE(torch.nn.Module):
         pull_node_idx_in_target = torch.tensor(pull_node_idx_in_target)
         return pull_node_idx_in_target, pull_node_embeddings
 
-
+    def reset_embeddings(self):
+        # after each epoch, remove the embeddings
+        for layer in range(self.num_layers - 1):
+            tmp_tag = 'layer_' + str(layer + 1)
+            self.embedding_cache[tmp_tag].reset()
+        
+        self.evit_time = 0
+        self.index_select_time = 0
+        self.cache_transfer_time = 0
+        
     def inference(self, x_all):
         pbar = tqdm(total=x_all.size(0) * self.num_layers)
         pbar.set_description('Evaluating')

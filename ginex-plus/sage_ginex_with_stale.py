@@ -322,7 +322,9 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         del (adjs_host)
         tensor_free(batch_inputs)
         pbar.update(batch_size)
-
+    tqdm.write(f"epoch: {epoch:02d}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
+    # not cache pre-epoch embeddings
+    
     return total_loss, total_correct
 
 
@@ -380,7 +382,8 @@ def train(epoch):
 
     loss = total_loss / num_iter
     approx_acc = total_correct / dataset.train_idx.numel()
-
+    tqdm.write(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
+    model.reset_embeddings()
     return loss, approx_acc
 
 
@@ -458,6 +461,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
 
     best_val_acc = final_test_acc = 0
+    neighbor_indice_time = 0
     for epoch in range(args.num_epochs):
         if args.verbose:
             tqdm.write('\n==============================')
