@@ -85,7 +85,7 @@ class SAGE(torch.nn.Module):
         self.index_select_time += time.time() - index_select_timer
         evit_time_start = time.time()
         self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
-        self.evit_time += time.time - evit_time_start
+        self.evit_time += time.time() - evit_time_start
         return pull_nodes_idx, pull_embeddings
 
     def reset_embeddings(self):
