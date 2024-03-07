@@ -82,7 +82,7 @@ class FIFO:
         self.num_entries = cache_entries
         self.tag = tag
         self.fifo_ratio = fifo_ratio
-        self.cache_entry_status = torch.zeros(self.num_entries, dtype=torch.int64)
+        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64)
         self.cache_size = int(fifo_ratio * cache_entries)
         self.cache = []  # the cached idx
         self.only_indice = only_indice
@@ -92,45 +92,20 @@ class FIFO:
         print("In layer {tag}, the cache entry number is {:d}".format(
             self.cache_size, tag=self.tag))
 
-    def get(self, key):
-        if key in self.cache:
-            return True
-        else:
-            if len(self.cache) == self.cache_size:
-                evit_item = self.cache.pop(0)
-                self.cache_entry_status[evit_item] = 0
-                self.add(key)
-            else:
-                self.add(key)
-            return False
-
-    def add(self, key):
-        if len(self.cache) == self.cache_size:
-            print("try to put an item to a full list, please first evit")
-            return
-        self.cache.append(key)
-        self.cache_entry_status[key] = 1
-
-    def print_debug(self):
-        res = "curr cache item: "
-        for item in self.cache:
-            res += str(item)
-            res += " ,"
-        print(res)
 
     def get_hit(self, target_nodes):
         if (target_nodes.is_cuda):
             target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
-        cache_hit = target_nodes_status > 0
+        cache_hit = target_nodes_status >= 0
         hit_nodes = target_nodes[cache_hit]
-        return len(hit_nodes)
+        return hit_nodes.shape[0]
 
     def evit_and_place_indice(self, target_nodes):
         # only used for sampling, not included the updating of feature !
         # now only support cpu..
         target_nodes_status = self.cache_entry_status[target_nodes]
-        cache_no_hit = target_nodes_status == 0
+        cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         if pop_num > 0:
@@ -140,8 +115,9 @@ class FIFO:
         nodes_place = target_nodes[cache_no_hit]
         self.cache.extend(nodes_place.tolist())
         if pop_num > 0:
-            self.cache_entry_status[evit_item] = 0
+            self.cache_entry_status[evit_item] = -1
         self.cache_entry_status[nodes_place] = 1
+        # 这里因为不涉及真实结果的获取, 因此无需保留真实idx
 
     def evit_and_place(self, target_nodes, target_feature):
         # batch evit and update!
@@ -156,7 +132,7 @@ class FIFO:
             target_nodes = target_nodes.cpu()
             target_feature = target_feature.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
-        cache_no_hit = target_nodes_status == 0
+        cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
@@ -164,40 +140,44 @@ class FIFO:
         if pop_num > 0:
             evit_item = self.cache[0:pop_num]
             self.cache = self.cache[pop_num:]
+            # 更新 embedding idx
+            self.cache_entry_status[self.cache] -= pop_num
             self.cache_data = self.cache_data[pop_num:, :]
+        push_idx = torch.tensor(range(len(self.cache) - pop_num, len(self.cache)))
         nodes_place = target_nodes[cache_no_hit]
         self.cache.extend(nodes_place.tolist())
         self.cache_data = torch.cat((self.cache_data, target_feature), dim=0)
         print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
-            self.cache_entry_status[evit_item] = 0
-        self.cache_entry_status[nodes_place] = 1
+            self.cache_entry_status[evit_item] = -1
+        self.cache_entry_status[nodes_place] = push_idx
 
     def get_hit_nodes(self, target_nodes):
-        # return the node that in the embedding cache(will use the stale representation)
+        # return the node that in the embedding cache(will be used as the stale representation)
         if (target_nodes.is_cuda):
             target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
-        cache_hit = target_nodes_status > 0
+        cache_hit = target_nodes_status >= 0
         target_node_idx = torch.tensor(range(len(target_nodes)))
         hit_nodes_idx = target_node_idx[cache_hit]
-        hit_nodes = target_nodes[cache_hit]
+        # hit_nodes = target_nodes[cache_hit]
         no_hit_nodes = target_nodes[~cache_hit]
         no_hit_nodes_idx = target_node_idx[~cache_hit]
-        return hit_nodes_idx, hit_nodes, no_hit_nodes_idx, no_hit_nodes
+        pull_embeddings = self.cache_data[target_nodes_status[cache_hit], :]
+        return hit_nodes_idx, pull_embeddings, no_hit_nodes_idx, no_hit_nodes
 
     def get_pop_idx(self, target_nodes):
         # for FIFO, get_pop_idx simply computes the pop_num and return range(pop_num)
         if (target_nodes.is_cuda):
             target_nodes = target_nodes.cpu()
         target_nodes_status = self.cache_entry_status[target_nodes]
-        cache_no_hit = target_nodes_status == 0
+        cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
         return range(pop_num)
     
     def reset(self):
-        self.cache_entry_status = torch.zeros(self.num_entries, dtype=torch.int64)
+        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64)
         self.cache = []  # the cached idx
         print(f"Reset the cache..")
     

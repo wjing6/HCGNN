@@ -330,7 +330,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 
 def train(epoch):
     model.train()
-
+    neighbor_indice_time = 0
     dataset.make_new_shuffled_train_idx()
     num_iter = int((dataset.shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
@@ -346,7 +346,7 @@ def train(epoch):
         if args.verbose:
             tqdm.write(
                 'Running {}th superbatch of total {} superbatches'.format(i, num_sb))
-
+        
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
@@ -461,7 +461,6 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
 
     best_val_acc = final_test_acc = 0
-    neighbor_indice_time = 0
     for epoch in range(args.num_epochs):
         if args.verbose:
             tqdm.write('\n==============================')
