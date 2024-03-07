@@ -81,18 +81,18 @@ class SAGE(torch.nn.Module):
         # pull_node_idx 对应 cache 中的 idx, 还需要根据 pull_nodes 得到对应 x_target 位置
 
         index_select_timer = time.time()
-        push_embeddings = full_embeddings.index_select(0, torch.tensor(push_node_idx)).clone().detach()
-        pull_node_embeddings = self.embedding_cache[layer_tag].cache_data.index_select(0, torch.tensor(pull_node_idx))
+        push_embeddings = full_embeddings.index_select(0, push_node_idx).clone().detach()
+        pull_node_embeddings = self.embedding_cache[layer_tag].cache_data.index_select(0, pull_node_idx)
         self.index_select_time += time.time() - index_select_timer
-        evit_timer = time.time()
-        self.embedding_cache[layer_tag].evit_and_place(torch.tensor(push_nodes), push_embeddings)
-        self.evit_time += time.time() - evit_timer
+        evit_time_start = time.time()
+        self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
 
         pull_node_idx_in_target = []
         # TODO: naive implementation, need improve!
         for node in pull_nodes:
             pull_node_idx_in_target.append(int(np.where(x_target == node)[0]))
         pull_node_idx_in_target = torch.tensor(pull_node_idx_in_target)
+        self.evit_time += time.time() - evit_time_start
         return pull_node_idx_in_target, pull_node_embeddings
 
     def reset_embeddings(self):

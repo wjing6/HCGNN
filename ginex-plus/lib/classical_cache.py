@@ -170,7 +170,6 @@ class FIFO:
         self.cache_data = torch.cat((self.cache_data, target_feature), dim=0)
         print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
-            print (f"status: {self.cache_entry_status}, evit_item: {evit_item}")
             self.cache_entry_status[evit_item] = 0
         self.cache_entry_status[nodes_place] = 1
 
