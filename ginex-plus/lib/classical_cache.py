@@ -126,6 +126,7 @@ class FIFO:
             raise ValueError(
                 "only_indice is True, you should not update the feature data. Please use evit_and_place_indice")
         assert (target_nodes.shape[0] == target_feature.shape[0])
+        print (f"target shape: {target_nodes.shape}")
         if (target_nodes.shape[0] == 0):
             return
         if (target_nodes.device != self.device):
@@ -137,21 +138,28 @@ class FIFO:
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
+        print (f"pop number: {pop_num}")
         if pop_num > 0:
             evit_item = self.cache[0:pop_num]
+            print (f"before pop, cache len: {len(self.cache)}")
             self.cache = self.cache[pop_num:]
+
             # 更新 embedding idx
             self.cache_entry_status[self.cache] -= pop_num
             self.cache_data = self.cache_data[pop_num:, :]
-        push_idx = torch.tensor(range(len(self.cache) - pop_num, len(self.cache)), device=self.device)
-        nodes_place = target_nodes[cache_no_hit]
-        if nodes_place.is_cuda:
-            # as the list in 'CPU'
-            self.cache.extend(nodes_place.cpu().tolist())
-        self.cache_data = torch.cat((self.cache_data, target_feature), dim=0)
+            if pop_num < target_nodes.shape[0]:
+                self.cache_data = self.cache_data[0: pop_num - target_nodes.shape[0], :]
+            push_idx = torch.tensor(range(len(self.cache), self.cache_size))
+            self.cache_data = torch.cat((self.cache_data, target_feature), dim = 0)
+        else:
+            push_idx = torch.tensor(range(len(self.cache), len(self.cache) + no_hit_nodes.shape[0]))
+            self.cache_data[push_idx] = target_feature
+        self.cache.extend(no_hit_nodes.tolist())
+        print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
-        self.cache_entry_status[nodes_place] = push_idx
+        assert(no_hit_nodes.shape[0] == push_idx.shape[0])
+        self.cache_entry_status[no_hit_nodes] = push_idx
 
     def get_hit_nodes(self, target_nodes):
         # return the node that in the embedding cache(will be used as the stale representation)
