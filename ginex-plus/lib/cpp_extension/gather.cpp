@@ -168,7 +168,7 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
     }
     auto floating = readTimer.elapsed_and_reset() / 1000.0;
 
-    std::cout << "prepare read cost " << floating << " s" << std::endl;
+    // std::cout << "prepare read cost " << floating << " s" << std::endl;
     // stage 2: collect the data and copy
 #pragma omp parallel for num_threads(atoi(getenv("GINEX_NUM_THREADS")))
     for (int64_t n = 0; n < num_idx; n++) {
@@ -194,7 +194,7 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
     }
 
     floating = readTimer.elapsed_and_reset() / 1000.0;
-    std::cout << "memcpy copy cost " << floating << " s" << std::endl;
+    // std::cout << "memcpy copy cost " << floating << " s" << std::endl;
     auto options = torch::TensorOptions()
                        .dtype(torch::kFloat32)
                        .layout(torch::kStrided)

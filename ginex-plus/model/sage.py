@@ -8,7 +8,7 @@ import numpy as np
 import time
 
 class SAGE(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, device, embedding_rate: List[float]):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, device, cache_device, embedding_rate: List[float]):
         super(SAGE, self).__init__()
 
         if len(embedding_rate) != num_layers - 1:
@@ -17,6 +17,9 @@ class SAGE(torch.nn.Module):
         self.num_layers = num_layers
         self.embedding_cache = {}
         self.device = device
+        # model device
+        self.cache_device = cache_device
+        # default: cache device == model device, in the same GPU
         for layer in range(len(embedding_rate)):
             tmp_tag = 'layer_' + str(layer + 1)
             self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], only_indice=False)
@@ -58,7 +61,8 @@ class SAGE(torch.nn.Module):
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
                 if pull_nodes_idx.shape[0] != 0:
-                    if not pull_nodes_idx.is_cuda:
+                    if pull_nodes_idx.device != self.device:
+                        # embedding is not the same as training device, transfer the cache to the training device
                         cache_transfer_start = time.time()
                         pull_nodes_idx = pull_nodes_idx.to(self.device)
                         pull_embeddings = pull_embeddings.to(self.device)
@@ -73,9 +77,9 @@ class SAGE(torch.nn.Module):
         # push the updating embedding into the cache and pull the stale embedding to the corresponding 'tensor'
         # 'x_target' include all the nodes, we need to fetch the embedding with the idx in 'x_target'
         # 'push_embedding' corresponds with 'push_idx'
-        if full_embeddings.is_cuda:
-            full_embeddings = full_embeddings.cpu()
-            x_target = x_target.cpu()
+        if full_embeddings.device != self.cache_device:
+            full_embeddings = full_embeddings.to(self.cache_device)
+            x_target = x_target.to(self.cache_device)
         layer_tag = 'layer_' + str(layer)
         pull_nodes_idx, pull_embeddings, push_nodes_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target)
         # pull_node_idx 对应 x_target 中的idx

@@ -78,24 +78,25 @@ class s3FIFO:
 
 
 class FIFO:
-    def __init__(self, cache_entries, tag, feature_dim, fifo_ratio=0.1, only_indice=True):
+    def __init__(self, cache_entries, tag, feature_dim, fifo_ratio=0.1, only_indice=True, device='cpu'):
         self.num_entries = cache_entries
         self.tag = tag
         self.fifo_ratio = fifo_ratio
-        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64)
+        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.cache_size = int(fifo_ratio * cache_entries)
+        self.device = device
         self.cache = []  # the cached idx
         self.only_indice = only_indice
         if not only_indice:
             self.cache_data = torch.zeros(
-                self.cache_size, feature_dim, dtype=torch.float32)
+                self.cache_size, feature_dim, dtype=torch.float32, device=self.device)
         print("In layer {tag}, the cache entry number is {:d}".format(
             self.cache_size, tag=self.tag))
 
 
     def get_hit(self, target_nodes):
-        if (target_nodes.is_cuda):
-            target_nodes = target_nodes.cpu()
+        if (target_nodes.device != self.device):
+            target_nodes = target_nodes.to(self.device)
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status >= 0
         hit_nodes = target_nodes[cache_hit]
@@ -126,11 +127,10 @@ class FIFO:
                 "only_indice is True, you should not update the feature data. Please use evit_and_place_indice")
         assert (target_nodes.shape[0] == target_feature.shape[0])
         if (target_nodes.shape[0] == 0):
-            print("all hit.. exit..")
             return
-        if (target_nodes.is_cuda):
-            target_nodes = target_nodes.cpu()
-            target_feature = target_feature.cpu()
+        if (target_nodes.device != self.device):
+            target_nodes = target_nodes.to(self.device)
+            target_feature = target_feature.to(self.device)
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
@@ -143,22 +143,23 @@ class FIFO:
             # 更新 embedding idx
             self.cache_entry_status[self.cache] -= pop_num
             self.cache_data = self.cache_data[pop_num:, :]
-        push_idx = torch.tensor(range(len(self.cache) - pop_num, len(self.cache)))
+        push_idx = torch.tensor(range(len(self.cache) - pop_num, len(self.cache)), device=self.device)
         nodes_place = target_nodes[cache_no_hit]
-        self.cache.extend(nodes_place.tolist())
+        if nodes_place.is_cuda:
+            # as the list in 'CPU'
+            self.cache.extend(nodes_place.cpu().tolist())
         self.cache_data = torch.cat((self.cache_data, target_feature), dim=0)
-        print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
         self.cache_entry_status[nodes_place] = push_idx
 
     def get_hit_nodes(self, target_nodes):
         # return the node that in the embedding cache(will be used as the stale representation)
-        if (target_nodes.is_cuda):
-            target_nodes = target_nodes.cpu()
+        if (target_nodes.device != self.device):
+            target_nodes = target_nodes.to(self.device)
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status >= 0
-        target_node_idx = torch.tensor(range(len(target_nodes)))
+        target_node_idx = torch.tensor(range(len(target_nodes)), device=self.device)
         hit_nodes_idx = target_node_idx[cache_hit]
         # hit_nodes = target_nodes[cache_hit]
         no_hit_nodes = target_nodes[~cache_hit]
@@ -168,8 +169,8 @@ class FIFO:
 
     def get_pop_idx(self, target_nodes):
         # for FIFO, get_pop_idx simply computes the pop_num and return range(pop_num)
-        if (target_nodes.is_cuda):
-            target_nodes = target_nodes.cpu()
+        if (target_nodes.device != self.device):
+            target_nodes = target_nodes.to(self.device)
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
@@ -177,7 +178,7 @@ class FIFO:
         return range(pop_num)
     
     def reset(self):
-        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64)
+        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.cache = []  # the cached idx
         print(f"Reset the cache..")
     
