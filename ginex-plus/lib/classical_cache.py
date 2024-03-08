@@ -104,7 +104,8 @@ class FIFO:
 
     def evit_and_place_indice(self, target_nodes):
         # only used for sampling, not included the updating of feature !
-        # now only support cpu..
+        # now only support CPU, so target_nodes is in CPU
+        # TODO: Add support for GPU
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
@@ -143,18 +144,19 @@ class FIFO:
             evit_item = self.cache[0:pop_num]
             print (f"before pop, cache len: {len(self.cache)}")
             self.cache = self.cache[pop_num:]
-
             # 更新 embedding idx
             self.cache_entry_status[self.cache] -= pop_num
             self.cache_data = self.cache_data[pop_num:, :]
             if pop_num < target_nodes.shape[0]:
                 self.cache_data = self.cache_data[0: pop_num - target_nodes.shape[0], :]
-            push_idx = torch.tensor(range(len(self.cache), self.cache_size))
+            push_idx = torch.tensor(range(len(self.cache), self.cache_size), device=self.device)
             self.cache_data = torch.cat((self.cache_data, target_feature), dim = 0)
         else:
-            push_idx = torch.tensor(range(len(self.cache), len(self.cache) + no_hit_nodes.shape[0]))
+            push_idx = torch.tensor(range(len(self.cache), len(self.cache) + no_hit_nodes.shape[0]), device=self.device)
             self.cache_data[push_idx] = target_feature
-        self.cache.extend(no_hit_nodes.tolist())
+        if no_hit_nodes.is_cuda:
+            # cache is [], stored in 'CPU'
+            self.cache.extend(no_hit_nodes.cpu().tolist())
         print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
