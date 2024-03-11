@@ -82,9 +82,9 @@ class FIFO:
         self.num_entries = cache_entries
         self.tag = tag
         self.fifo_ratio = fifo_ratio
+        self.device = device
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.cache_size = int(fifo_ratio * cache_entries)
-        self.device = device
         self.cache = []  # the cached idx
         self.only_indice = only_indice
         if not only_indice:
@@ -127,7 +127,6 @@ class FIFO:
             raise ValueError(
                 "only_indice is True, you should not update the feature data. Please use evit_and_place_indice")
         assert (target_nodes.shape[0] == target_feature.shape[0])
-        print (f"target shape: {target_nodes.shape}")
         if (target_nodes.shape[0] == 0):
             return
         if (target_nodes.device != self.device):
@@ -139,10 +138,8 @@ class FIFO:
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
         pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
-        print (f"pop number: {pop_num}")
         if pop_num > 0:
             evit_item = self.cache[0:pop_num]
-            print (f"before pop, cache len: {len(self.cache)}")
             self.cache = self.cache[pop_num:]
             # 更新 embedding idx
             self.cache_entry_status[self.cache] -= pop_num
@@ -157,7 +154,6 @@ class FIFO:
         if no_hit_nodes.is_cuda:
             # cache is [], stored in 'CPU'
             self.cache.extend(no_hit_nodes.cpu().tolist())
-        print(f"after cat, cache shape: {self.cache_data.shape}")
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
         assert(no_hit_nodes.shape[0] == push_idx.shape[0])
@@ -190,7 +186,6 @@ class FIFO:
     def reset(self):
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.cache = []  # the cached idx
-        print(f"Reset the cache..")
     
     
 

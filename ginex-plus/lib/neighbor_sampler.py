@@ -103,7 +103,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
             # init the embedding cache
             # what is the layer_1 ? top down !
             tmp_tag = 'layer_' + str(i)
-            self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, cache_dim, fifo_ratio= embedding_size[i - 1])
+            self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, cache_dim, fifo_ratio = embedding_size[i - 1])
         
         if node_idx.dtype == torch.bool:
             node_idx = node_idx.nonzero(as_tuple=False).view(-1)

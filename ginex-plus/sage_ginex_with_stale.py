@@ -107,7 +107,7 @@ def inspect(i, last, mode='train'):
         if last:
             cache.pass_3(iterptr, iters, initial_cache_indices)
             torch.cuda.empty_cache()
-            return cache, initial_cache_indices.cpu()
+            return cache, initial_cache_indices.cpu(), 0
         else:
             torch.cuda.empty_cache()
 
@@ -144,11 +144,11 @@ def inspect(i, last, mode='train'):
 
     tensor_free(neighbor_cache)
     tensor_free(neighbor_cachetable)
-
+    
     if i != 0:
-        return cache, initial_cache_indices.cpu()
+        return cache, initial_cache_indices.cpu(), loader.embedding_indice_update_timer
     else:
-        return None, None
+        return None, None, 0
 
 
 def switch(cache, initial_cache_indices):
@@ -350,7 +350,7 @@ def train(epoch):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices = inspect(
+        cache, initial_cache_indices, sampler_batch_time = inspect(
             i, last=(i == num_sb), mode='train')
         torch.cuda.synchronize()
         if args.verbose:
@@ -377,12 +377,14 @@ def train(epoch):
 
         # Delete obsolete runtime files
         delete_trace(i)
+        neighbor_indice_time += sampler_batch_time
 
     pbar.close()
 
     loss = total_loss / num_iter
     approx_acc = total_correct / dataset.train_idx.numel()
-    tqdm.write(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
+    tqdm.write(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
+            time: {neighbor_indice_time}")
     model.reset_embeddings()
     return loss, approx_acc
 
