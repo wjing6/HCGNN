@@ -22,7 +22,7 @@ class SAGE(torch.nn.Module):
         # default: cache device == model device, in the same GPU
         for layer in range(len(embedding_rate)):
             tmp_tag = 'layer_' + str(layer + 1)
-            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], only_indice=False)
+            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], device=self.cache_device, only_indice=False)
             # 1 表示 size 值已经在参数'1'给出
 
         self.convs = torch.nn.ModuleList()

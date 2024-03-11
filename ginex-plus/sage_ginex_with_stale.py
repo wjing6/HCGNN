@@ -75,7 +75,7 @@ if args.verbose:
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
 model = SAGE(num_features, args.num_hiddens,
-             num_classes, num_layers=len(sizes), num_nodes=num_nodes, device=device, embedding_rate=embedding_rate)
+             num_classes, num_layers=len(sizes), num_nodes=num_nodes, device=device, cache_device=device ,embedding_rate=embedding_rate)
 model = model.to(device)
 
 
