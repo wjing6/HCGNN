@@ -8,7 +8,8 @@ import numpy as np
 import time
 
 class SAGE(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, device, cache_device, embedding_rate: List[float]):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, 
+                device, cache_device, stale_thre, embedding_rate: List[float]):
         super(SAGE, self).__init__()
 
         if len(embedding_rate) != num_layers - 1:
@@ -19,11 +20,12 @@ class SAGE(torch.nn.Module):
         self.device = device
         # model device
         self.cache_device = cache_device
-        # default: cache device == model device, in the same GPU
+        # default: cache device = model device, in the same GPU
         for layer in range(len(embedding_rate)):
             tmp_tag = 'layer_' + str(layer + 1)
-            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], device=self.cache_device, only_indice=False)
-            # 1 表示 size 值已经在参数'1'给出
+            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], staleness_thre=stale_thre, 
+            device=self.cache_device, only_indice=False)
+
 
         self.convs = torch.nn.ModuleList()
         self.convs.append(SAGEConv(in_channels, hidden_channels))
@@ -56,18 +58,18 @@ class SAGE(torch.nn.Module):
             # e.g. x_target: [1, 2, 3, 5, 8], in embedding_cache: [3, 5]
             # which means there is no edge_index with 3 and 5
             # 根据 convs 定义, 实际得到的 x 维度与不裁剪应该是一致的
-            # TODO: 这里目前的cache在cpu中, 所以需要在GPU与CPU中不断交换, 需要优化
             x_target_nid = n_id[:size[1]]
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
-                if pull_nodes_idx.shape[0] != 0:
-                    if pull_nodes_idx.device != self.device:
-                        # embedding is not the same as training device, transfer the cache to the training device
-                        cache_transfer_start = time.time()
-                        pull_nodes_idx = pull_nodes_idx.to(self.device)
-                        pull_embeddings = pull_embeddings.to(self.device)
-                        self.cache_transfer_time += time.time() - cache_transfer_start
-                    x[pull_nodes_idx] = pull_embeddings
+                if pull_nodes_idx is not None:
+                    if pull_nodes_idx.shape[0] != 0:
+                        if pull_nodes_idx.device != self.device:
+                            # embedding is not the same as training device, transfer the cache to the training device
+                            cache_transfer_start = time.time()
+                            pull_nodes_idx = pull_nodes_idx.to(self.device)
+                            pull_embeddings = pull_embeddings.to(self.device)
+                            self.cache_transfer_time += time.time() - cache_transfer_start
+                        x[pull_nodes_idx] = pull_embeddings
             if i != self.num_layers - 1:
                 x = F.relu(x)
                 x = F.dropout(x, p=0.5, training=self.training)
@@ -83,13 +85,17 @@ class SAGE(torch.nn.Module):
         layer_tag = 'layer_' + str(layer)
         pull_nodes_idx, pull_embeddings, push_nodes_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target)
         # pull_node_idx 对应 x_target 中的idx
-
-        index_select_timer = time.time()
-        push_embeddings = full_embeddings.index_select(0, push_nodes_idx).clone().detach()
-        self.index_select_time += time.time() - index_select_timer
-        evit_time_start = time.time()
-        self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
-        self.evit_time += time.time() - evit_time_start
+        if pull_nodes_idx is not None:
+            index_select_timer = time.time()
+            push_embeddings = full_embeddings.index_select(0, push_nodes_idx).clone().detach()
+            # remove from the computation graph
+            self.index_select_time += time.time() - index_select_timer
+            evit_time_start = time.time()
+            self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
+            self.evit_time += time.time() - evit_time_start
+        else:
+            push_embeddings = full_embeddings.clone().detach()
+            self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
         return pull_nodes_idx, pull_embeddings
 
     def reset_embeddings(self):

@@ -1,7 +1,7 @@
 from collections import OrderedDict
 import numpy as np
 import torch
-
+from ..utils import log
 
 class s3FIFO:
     # quick demotion and lazy promotion
@@ -20,7 +20,7 @@ class s3FIFO:
         self.fifo_cache = OrderedDict()
         self.main_cache = OrderedDict()
         self.ghost_cache = OrderedDict()  # actually need less memory
-        print("fifo length: {:d}, main length: {:d}\n".format(
+        log.info("fifo length: {:d}, main length: {:d}\n".format(
             self.fifo_cache_size, self.main_cache_size))
 
     def get(self, key):
@@ -78,22 +78,23 @@ class s3FIFO:
 
 
 class FIFO:
-    def __init__(self, cache_entries, tag, feature_dim, fifo_ratio=0.1, only_indice=True, device='cpu'):
+    def __init__(self, cache_entries, tag, feature_dim, staleness_thre, fifo_ratio=0.1, only_indice=True, device='cpu'):
         self.num_entries = cache_entries
         self.tag = tag
         self.fifo_ratio = fifo_ratio
         self.device = device
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.cache_size = int(fifo_ratio * cache_entries)
-        self.cache = []  # the cached idx
+        self.cache_idx = []  # the cached idx
         self.only_indice = only_indice
+        self.staleness_thre = staleness_thre
+        self.head = 0
         if not only_indice:
             self.cache_data = torch.zeros(
                 self.cache_size, feature_dim, dtype=torch.float32, device=self.device)
-        print("In layer {tag}, the cache entry number is {:d}".format(
+        log.info("In {tag}, the cache entry number is {:d}".format(
             self.cache_size, tag=self.tag))
-
-
+    
     def get_hit(self, target_nodes):
         if (target_nodes.device != self.device):
             target_nodes = target_nodes.to(self.device)
@@ -102,32 +103,38 @@ class FIFO:
         hit_nodes = target_nodes[cache_hit]
         return hit_nodes.shape[0]
 
-    def evit_and_place_indice(self, target_nodes):
-        # only used for sampling, not included the updating of feature !
-        # now only support CPU, so target_nodes is in CPU
-        # TODO: Add support for GPU
+    def evit_and_place_indice(self, target_nodes, global_batch):
+        # only used for sampling, not included the updating of feature!
+        if global_batch % self.staleness_thre == 0:
+            self.reset()
+            log.info("receive the threshold, refresh the cache..")
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
-        pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
+        pop_num = no_hit_nodes.shape[0] + len(self.cache_idx) - self.cache_size
         if pop_num > 0:
-            evit_item = self.cache[0:pop_num]
-            self.cache = self.cache[pop_num:]
+            evit_item = self.cache_idx[0:pop_num]
+            self.cache_idx = self.cache_idx[pop_num:]
         
-        nodes_place = target_nodes[cache_no_hit]
-        self.cache.extend(nodes_place.tolist())
+        self.cache_idx.extend(no_hit_nodes.tolist())
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
-        self.cache_entry_status[nodes_place] = 1
-        # 这里因为不涉及真实结果的获取, 因此无需保留真实idx
+        self.cache_entry_status[no_hit_nodes] = 1
+        assert len(self.cache_idx) <= self.cache_size
+        # 这里因为不涉及真实结果的获取, 因此无需保留真实位置
 
-    def evit_and_place(self, target_nodes, target_feature):
+    def evit_and_place(self, target_nodes, target_feature, global_batch):
         # batch evit and update!
         if self.only_indice:
-            raise ValueError(
+            log.error(
                 "only_indice is True, you should not update the feature data. Please use evit_and_place_indice")
+            return
+        if global_batch % self.staleness_thre == 0:
+            self.reset()
+            log.info("receive the threshold, refresh the cache..")
         assert (target_nodes.shape[0] == target_feature.shape[0])
         if (target_nodes.shape[0] == 0):
+            log.info("all nodes hit.")
             return
         if (target_nodes.device != self.device):
             target_nodes = target_nodes.to(self.device)
@@ -137,35 +144,50 @@ class FIFO:
         no_hit_nodes = target_nodes[cache_no_hit]
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
-        pop_num = no_hit_nodes.shape[0] + len(self.cache) - self.cache_size
+        pop_num = no_hit_nodes.shape[0] + len(self.cache_idx) - self.cache_size
         if pop_num > 0:
-            evit_item = self.cache[0:pop_num]
-            self.cache = self.cache[pop_num:]
-            # 更新 embedding idx
-            self.cache_entry_status[self.cache] -= pop_num
-            self.cache_data = self.cache_data[pop_num:, :]
-            if pop_num < target_nodes.shape[0]:
-                self.cache_data = self.cache_data[0: pop_num - target_nodes.shape[0], :]
-            push_idx = torch.tensor(range(len(self.cache), self.cache_size), device=self.device)
-            self.cache_data = torch.cat((self.cache_data, target_feature), dim = 0)
+            evit_item = self.cache_idx[0:pop_num]
+            self.cache_idx = self.cache_idx[pop_num:]
+            # self.cache_entry_status[self.cache] -= pop_num
+            # self.cache_data = self.cache_data[pop_num:, :]
+            # push_idx = torch.arange(len(self.cache), self.cache_size, device=self.device)
+            # self.cache_data = torch.cat((self.cache_data, target_feature), dim = 0)
+            # 移动指针，减少移动数据开销
+            if self.head + pop_num >= self.cache_size:
+                push_idx = torch.arange(self.head, self.cache_size, device=self.device)
+                if self.head + pop_num - self.cache_size > 0:
+                    push_idx_part2 = torch.arange(0, self.head + pop_num - self.cache_size, device = self.device)
+                    push_idx = torch.cat((push_idx, push_idx_part2), dim = 0)
+                self.cache_data[push_idx] = target_feature
+                self.head = self.head + pop_num - self.cache_size
+            else:
+                push_idx = torch.arange(self.head, self.head + pop_num, device=self.device)
+                self.cache_data[push_idx] = target_feature
+                self.head += pop_num
         else:
-            push_idx = torch.tensor(range(len(self.cache), len(self.cache) + no_hit_nodes.shape[0]), device=self.device)
+            push_idx = torch.arange(len(self.cache_idx), len(self.cache_idx) + no_hit_nodes.shape[0], device=self.device)
             self.cache_data[push_idx] = target_feature
         if no_hit_nodes.is_cuda:
             # cache is [], stored in 'CPU'
-            self.cache.extend(no_hit_nodes.cpu().tolist())
+            self.cache_idx.extend(no_hit_nodes.cpu().tolist())
+        else:
+            self.cache_idx.extend(no_hit_nodes.tolist())
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
         assert(no_hit_nodes.shape[0] == push_idx.shape[0])
         self.cache_entry_status[no_hit_nodes] = push_idx
 
-    def get_hit_nodes(self, target_nodes):
+    def get_hit_nodes(self, target_nodes, global_batch):
         # return the node that in the embedding cache(will be used as the stale representation)
+        # need to check the staleness.. if stale, return None
+        if global_batch % self.staleness_thre == 0:
+            log.info(f"{global_batch}, hit None(because refresh)")
+            return None, None, None, target_nodes
         if (target_nodes.device != self.device):
             target_nodes = target_nodes.to(self.device)
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_hit = target_nodes_status >= 0
-        target_node_idx = torch.tensor(range(len(target_nodes)), device=self.device)
+        target_node_idx = torch.arange(0, len(target_nodes), device=self.device)
         hit_nodes_idx = target_node_idx[cache_hit]
         # hit_nodes = target_nodes[cache_hit]
         no_hit_nodes = target_nodes[~cache_hit]
@@ -175,6 +197,7 @@ class FIFO:
 
     def get_pop_idx(self, target_nodes):
         # for FIFO, get_pop_idx simply computes the pop_num and return range(pop_num)
+        # FIXME: currently unused!
         if (target_nodes.device != self.device):
             target_nodes = target_nodes.to(self.device)
         target_nodes_status = self.cache_entry_status[target_nodes]
@@ -185,7 +208,8 @@ class FIFO:
     
     def reset(self):
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
-        self.cache = []  # the cached idx
+        self.cache_idx = []  # the cached idx
+        self.head = 0
     
     
 

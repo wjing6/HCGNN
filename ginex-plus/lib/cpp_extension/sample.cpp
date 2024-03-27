@@ -123,10 +123,7 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
         out_rowptr_data[i + 1] = out_rowptr_data[i] + cols[i].size();
       }
     }
-  }
- /// 
-  else if (replace) { // Sample with replacement ===============================
-
+  } else if (replace) { // Sample with replacement ===============================
     for (int64_t i = 0; i < idx.numel(); i++) {
       n = idx_data[i];
       if (embedding_table_indice[n] > 0) {

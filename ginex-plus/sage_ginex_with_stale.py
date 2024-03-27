@@ -14,7 +14,7 @@ from lib.data import *
 from lib.cache import *
 from lib.utils import *
 from lib.neighbor_sampler import GinexNeighborSampler
-
+from utils import log
 
 # Parse arguments
 argparser = argparse.ArgumentParser()
@@ -322,7 +322,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         del (adjs_host)
         tensor_free(batch_inputs)
         pbar.update(batch_size)
-    tqdm.write(f"epoch: {epoch:02d}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
+    log.info(f"epoch: {epoch:02d}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
     # not cache pre-epoch embeddings
     
     return total_loss, total_correct
@@ -383,7 +383,7 @@ def train(epoch):
 
     loss = total_loss / num_iter
     approx_acc = total_correct / dataset.train_idx.numel()
-    tqdm.write(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
+    log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
     model.reset_embeddings()
     return loss, approx_acc
@@ -463,6 +463,8 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
 
     best_val_acc = final_test_acc = 0
+
+    log.info(f"training parameter: {sizes}")
     for epoch in range(args.num_epochs):
         if args.verbose:
             tqdm.write('\n==============================')
@@ -471,14 +473,14 @@ if __name__ == '__main__':
         start = time.time()
         loss, acc = train(epoch)
         end = time.time()
-        tqdm.write(
+        log.info(
             f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
-        tqdm.write('Epoch time: {:.4f} ms'.format((end - start) * 1000))
+        log.info('Epoch time: {:.4f} ms'.format((end - start) * 1000))
 
         if epoch > 3 and not args.train_only:
             val_loss, val_acc = inference(mode='valid')
             test_loss, test_acc = inference(mode='test')
-            tqdm.write('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
+            log.info('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
                 val_loss, val_acc, test_loss, test_acc))
 
             if val_acc > best_val_acc:
@@ -486,4 +488,4 @@ if __name__ == '__main__':
                 final_test_acc = test_acc
 
     if not args.train_only:
-        tqdm.write('Final Test acc: {final_test_acc:.4f}')
+        log.info('Final Test acc: {final_test_acc:.4f}')
