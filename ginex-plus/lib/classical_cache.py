@@ -145,6 +145,8 @@ class FIFO:
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
         pop_num = no_hit_nodes.shape[0] + len(self.cache_idx) - self.cache_size
+        push_num = no_hit_nodes.shape[0]
+        tail = (self.head + len(self.cache_idx)) % (self.cache_size)
         if pop_num > 0:
             evit_item = self.cache_idx[0:pop_num]
             self.cache_idx = self.cache_idx[pop_num:]
@@ -152,21 +154,32 @@ class FIFO:
             # self.cache_data = self.cache_data[pop_num:, :]
             # push_idx = torch.arange(len(self.cache), self.cache_size, device=self.device)
             # self.cache_data = torch.cat((self.cache_data, target_feature), dim = 0)
-            # 移动指针，减少移动数据开销
+            # 移动指针，避免移动数据开销
             if self.head + pop_num >= self.cache_size:
-                push_idx = torch.arange(self.head, self.cache_size, device=self.device)
+                push_idx = torch.arange(tail, self.cache_size, device=self.device)
                 if self.head + pop_num - self.cache_size > 0:
                     push_idx_part2 = torch.arange(0, self.head + pop_num - self.cache_size, device = self.device)
                     push_idx = torch.cat((push_idx, push_idx_part2), dim = 0)
                 self.cache_data[push_idx] = target_feature
                 self.head = self.head + pop_num - self.cache_size
             else:
-                push_idx = torch.arange(self.head, self.head + pop_num, device=self.device)
+                if (tail < self.head):
+                    push_idx = torch.arange(tail, self.head + pop_num, device=self.device)
+                else:
+                    push_idx = torch.arange(tail, self.cache_size, device=self.device)
+                    push_idx_part = torch.arange(0, self.head + pop_num, device= self.device)
+                    push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
                 self.cache_data[push_idx] = target_feature
                 self.head += pop_num
         else:
-            push_idx = torch.arange(len(self.cache_idx), len(self.cache_idx) + no_hit_nodes.shape[0], device=self.device)
+            if tail < self.head or tail + push_num < self.cache_size:
+                push_idx = torch.arange(tail, tail + push_num, device=self.device)
+            else:
+                push_idx = torch.arange(tail, self.cache_size, device=self.device)
+                push_idx_part = torch.arange(0, tail + push_num - self.cache_size, device=self.device)
+                push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
             self.cache_data[push_idx] = target_feature
+        
         if no_hit_nodes.is_cuda:
             # cache is [], stored in 'CPU'
             self.cache_idx.extend(no_hit_nodes.cpu().tolist())
