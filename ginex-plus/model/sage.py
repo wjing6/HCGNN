@@ -23,7 +23,7 @@ class SAGE(torch.nn.Module):
         # default: cache device = model device, in the same GPU
         for layer in range(len(embedding_rate)):
             tmp_tag = 'layer_' + str(layer + 1)
-            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, embedding_rate[layer], staleness_thre=stale_thre, 
+            self.embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, hidden_channels, stale_thre, embedding_rate[layer], 
             device=self.cache_device, only_indice=False)
 
 
@@ -32,7 +32,8 @@ class SAGE(torch.nn.Module):
         for _ in range(num_layers - 2):
             self.convs.append(SAGEConv(hidden_channels, hidden_channels))
         self.convs.append(SAGEConv(hidden_channels, out_channels))
-
+        
+        self.cur_batch = 0
         # timer
         self.index_select_time = 0
         self.evit_time = 0
@@ -61,29 +62,30 @@ class SAGE(torch.nn.Module):
             x_target_nid = n_id[:size[1]]
             if i < self.num_layers - 1:
                 pull_nodes_idx, pull_embeddings = self.push_and_pull(x, x_target_nid, self.num_layers - i - 1)
-                if pull_nodes_idx is not None:
-                    if pull_nodes_idx.shape[0] != 0:
-                        if pull_nodes_idx.device != self.device:
-                            # embedding is not the same as training device, transfer the cache to the training device
-                            cache_transfer_start = time.time()
-                            pull_nodes_idx = pull_nodes_idx.to(self.device)
-                            pull_embeddings = pull_embeddings.to(self.device)
-                            self.cache_transfer_time += time.time() - cache_transfer_start
-                        x[pull_nodes_idx] = pull_embeddings
+                if pull_nodes_idx is not None and pull_nodes_idx.shape[0] != 0:
+                    if pull_nodes_idx.device != self.device:
+                    # embedding is not the same as training device, transfer the cache to the training device
+                        cache_transfer_start = time.time()
+                        pull_nodes_idx = pull_nodes_idx.to(self.device)
+                        pull_embeddings = pull_embeddings.to(self.device)
+                        self.cache_transfer_time += time.time() - cache_transfer_start
+                    x[pull_nodes_idx] = pull_embeddings
             if i != self.num_layers - 1:
                 x = F.relu(x)
                 x = F.dropout(x, p=0.5, training=self.training)
+        self.cur_batch += 1
         return x.log_softmax(dim=-1)
 
     def push_and_pull(self, full_embeddings, x_target, layer):
         # push the updating embedding into the cache and pull the stale embedding to the corresponding 'tensor'
         # 'x_target' include all the nodes, we need to fetch the embedding with the idx in 'x_target'
         # 'push_embedding' corresponds with 'push_idx'
+        assert(full_embeddings.shape[0] == x_target.shape[0]), f"err in push_and_pull, embedding shape:{full_embeddings.shape} not match node shape:{x_target.shape}"
         if full_embeddings.device != self.cache_device:
             full_embeddings = full_embeddings.to(self.cache_device)
             x_target = x_target.to(self.cache_device)
         layer_tag = 'layer_' + str(layer)
-        pull_nodes_idx, pull_embeddings, push_nodes_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target)
+        pull_nodes_idx, pull_embeddings, push_nodes_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target, self.cur_batch)
         # pull_node_idx 对应 x_target 中的idx
         if pull_nodes_idx is not None:
             index_select_timer = time.time()
@@ -91,11 +93,11 @@ class SAGE(torch.nn.Module):
             # remove from the computation graph
             self.index_select_time += time.time() - index_select_timer
             evit_time_start = time.time()
-            self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
+            self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings, self.cur_batch)
             self.evit_time += time.time() - evit_time_start
         else:
             push_embeddings = full_embeddings.clone().detach()
-            self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings)
+            self.embedding_cache[layer_tag].evit_and_place(push_nodes, push_embeddings, self.cur_batch)
         return pull_nodes_idx, pull_embeddings
 
     def reset_embeddings(self):
@@ -107,11 +109,11 @@ class SAGE(torch.nn.Module):
         self.evit_time = 0
         self.index_select_time = 0
         self.cache_transfer_time = 0
+        self.cur_batch = 0
         
     def inference(self, x_all):
         pbar = tqdm(total=x_all.size(0) * self.num_layers)
         pbar.set_description('Evaluating')
-
         # Compute representations of nodes layer by layer, using *all*
         # available edges. This leads to faster computation in contrast to
         # immediately computing the final representations of each batch.
@@ -127,11 +129,7 @@ class SAGE(torch.nn.Module):
                 if i != self.num_layers - 1:
                     x = F.relu(x)
                 xs.append(x.cpu())
-
                 pbar.update(batch_size)
-
             x_all = torch.cat(xs, dim=0)
-
         pbar.close()
-
         return x_all

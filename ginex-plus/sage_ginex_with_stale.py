@@ -14,7 +14,7 @@ from lib.data import *
 from lib.cache import *
 from lib.utils import *
 from lib.neighbor_sampler import GinexNeighborSampler
-from utils import log
+from log import log
 
 # Parse arguments
 argparser = argparse.ArgumentParser()
@@ -22,6 +22,7 @@ argparser.add_argument('--gpu', type=int, default=0)
 argparser.add_argument('--num-epochs', type=int, default=10)
 argparser.add_argument('--batch-size', type=int, default=1000)
 argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
+argparser.add_argument('--stale-thre', type=int, default=5)
 argparser.add_argument('--num-hiddens', type=int, default=256)
 argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
 argparser.add_argument('--exp-name', type=str, default=None)
@@ -75,7 +76,7 @@ if args.verbose:
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
 model = SAGE(num_features, args.num_hiddens,
-             num_classes, num_layers=len(sizes), num_nodes=num_nodes, device=device, cache_device=device ,embedding_rate=embedding_rate)
+             num_classes, num_layers=len(sizes), stale_thre=args.stale_thre, num_nodes=num_nodes, device=device, cache_device=device ,embedding_rate=embedding_rate)
 model = model.to(device)
 
 
@@ -130,7 +131,7 @@ def inspect(i, last, mode='train'):
 
     start_idx = i * args.batch_size * args.sb_size
     end_idx = min((i+1) * args.batch_size * args.sb_size, node_idx.numel())
-    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, node_idx=node_idx[start_idx:end_idx],
+    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, args.stale_thre ,node_idx=node_idx[start_idx:end_idx],
                                   embedding_size=embedding_rate, sizes=sizes,
                                   cache_data=neighbor_cache, address_table=neighbor_cachetable,
                                   num_nodes=num_nodes,
@@ -223,6 +224,10 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     # Multi-threaded load of sets of (ids, adj, update)
     q = list()
     loader = list()
+    
+    # When execute, need refresh the cache !!
+    model.reset_embeddings()
+
     for t in range(args.trace_load_num_threads):
         q.append(Queue(maxsize=2))
         loader.append(threading.Thread(target=trace_load, args=(q[t], list(
@@ -385,7 +390,6 @@ def train(epoch):
     approx_acc = total_correct / dataset.train_idx.numel()
     log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
-    model.reset_embeddings()
     return loss, approx_acc
 
 

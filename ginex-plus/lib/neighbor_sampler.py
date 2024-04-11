@@ -65,7 +65,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
             `shuffle`, `drop_last`m `num_workers`.
     '''
     def __init__(self, indptr, indices, exp_name, sb,
-                 sizes: List[int], node_idx: Tensor,
+                 staleness_thre, sizes: List[int], node_idx: Tensor,
                  embedding_size: List[float],
                  cache_data = None, address_table = None,
                  num_nodes: Optional[int] = None,
@@ -81,6 +81,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
         self.indices = indices
         self.exp_name = exp_name
         self.sb = sb
+        self.cur_batch = 0
         self.node_idx = node_idx
         self.num_nodes = num_nodes
         
@@ -103,7 +104,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
             # init the embedding cache
             # what is the layer_1 ? top down !
             tmp_tag = 'layer_' + str(i)
-            self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, cache_dim, fifo_ratio = embedding_size[i - 1])
+            self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, cache_dim, staleness_thre ,fifo_ratio = embedding_size[i - 1])
         
         if node_idx.dtype == torch.bool:
             node_idx = node_idx.nonzero(as_tuple=False).view(-1)
@@ -129,9 +130,10 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
             else:
                 # get the embedding cache
                 tmp_tag = 'layer_' + str(layer)
+                self.embedding_cache[tmp_tag].check_if_fresh(self.cur_batch)
                 adj_t, n_id_new = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, self.embedding_cache[tmp_tag].cache_entry_status, self.cache_data, self.address_table)
                 embedding_indice_start = time.time()
-                self.embedding_cache[tmp_tag].evit_and_place_indice(n_id)
+                self.embedding_cache[tmp_tag].evit_and_place_indice(n_id, self.cur_batch)
                 self.embedding_indice_update_timer += time.time() - embedding_indice_start
                 n_id = n_id_new
 
@@ -150,6 +152,8 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
 
         torch.save(n_id, n_id_filename)
         torch.save(adjs, adjs_filename)
+        
+        self.cur_batch += 1
 
 
     def __repr__(self):

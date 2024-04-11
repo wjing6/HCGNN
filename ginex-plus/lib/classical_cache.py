@@ -1,7 +1,8 @@
 from collections import OrderedDict
 import numpy as np
 import torch
-from ..utils import log
+import sys
+from log import log
 
 class s3FIFO:
     # quick demotion and lazy promotion
@@ -85,10 +86,13 @@ class FIFO:
         self.device = device
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.cache_size = int(fifo_ratio * cache_entries)
-        self.cache_idx = []  # the cached idx
+        self.cache_idx = torch.zeros(self.cache_size, dtype=torch.int64, device=self.device) 
+        # the cached idx
         self.only_indice = only_indice
         self.staleness_thre = staleness_thre
+
         self.head = 0
+        self.cur_len = 0
         if not only_indice:
             self.cache_data = torch.zeros(
                 self.cache_size, feature_dim, dtype=torch.float32, device=self.device)
@@ -102,25 +106,60 @@ class FIFO:
         cache_hit = target_nodes_status >= 0
         hit_nodes = target_nodes[cache_hit]
         return hit_nodes.shape[0]
+    
+    def check_if_fresh(self, global_batch):
+        if global_batch % self.staleness_thre == 0:
+            self.reset()
 
     def evit_and_place_indice(self, target_nodes, global_batch):
         # only used for sampling, not included the updating of feature!
         if global_batch % self.staleness_thre == 0:
             self.reset()
-            log.info("receive the threshold, refresh the cache..")
+            # log.info("receive the threshold, refresh the cache..")
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
-        pop_num = no_hit_nodes.shape[0] + len(self.cache_idx) - self.cache_size
+        pop_num = no_hit_nodes.shape[0] + self.cur_len - self.cache_size
+        push_num = no_hit_nodes.shape[0]
+        tail = (self.head + self.cur_len) % (self.cache_size)
+
         if pop_num > 0:
-            evit_item = self.cache_idx[0:pop_num]
-            self.cache_idx = self.cache_idx[pop_num:]
-        
-        self.cache_idx.extend(no_hit_nodes.tolist())
+            if self.head + pop_num >= self.cache_size:
+                # log.debug("head out of range..")
+                evit_item = self.cache_idx[self.head:self.cache_size]
+                push_idx = torch.arange(tail, self.cache_size, device=self.device)
+                if self.head + pop_num - self.cache_size > 0:
+                    push_idx_part2 = torch.arange(0, self.head + pop_num - self.cache_size, device = self.device)
+                    push_idx = torch.cat((push_idx, push_idx_part2), dim = 0)
+                    evit_item = torch.cat((evit_item, self.cache_idx[0:self.head + pop_num - self.cache_size]), dim = 0)
+                self.head = self.head + pop_num - self.cache_size
+            else:
+                # log.debug(f"{global_batch}, head remain, len: {self.cur_len}, head: {self.head}, tail: {tail}")
+                evit_item = self.cache_idx[self.head:self.head + pop_num]
+                if (tail <= self.head):
+                    push_idx = torch.arange(tail, self.head + pop_num, device=self.device)
+                else:
+                    push_idx = torch.arange(tail, self.cache_size, device=self.device)
+                    push_idx_part = torch.arange(0, self.head + pop_num, device= self.device)
+                    push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
+                self.head += pop_num
+        else:
+            if tail <= self.head or tail + push_num < self.cache_size:
+                push_idx = torch.arange(tail, tail + push_num, device=self.device)
+            else:
+                push_idx = torch.arange(tail, self.cache_size, device=self.device)
+                push_idx_part = torch.arange(0, tail + push_num - self.cache_size, device=self.device)
+                push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
+        # log.debug(f"pop_num: {pop_num}, push_idx.shape {push_idx.shape}, no hit nodes shape: {no_hit_nodes.shape}")
+        self.cache_idx[push_idx] = no_hit_nodes
+        if pop_num <= 0:
+            self.cur_len += push_num
+        else:
+            self.cur_len = self.cache_size
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
         self.cache_entry_status[no_hit_nodes] = 1
-        assert len(self.cache_idx) <= self.cache_size
+        assert self.cur_len <= self.cache_size
         # 这里因为不涉及真实结果的获取, 因此无需保留真实位置
 
     def evit_and_place(self, target_nodes, target_feature, global_batch):
@@ -131,8 +170,7 @@ class FIFO:
             return
         if global_batch % self.staleness_thre == 0:
             self.reset()
-            log.info("receive the threshold, refresh the cache..")
-        assert (target_nodes.shape[0] == target_feature.shape[0])
+        assert (target_nodes.shape[0] == target_feature.shape[0]), f"current nodes shape:{target_nodes.shape}, feature shape:{target_feature.shape}"
         if (target_nodes.shape[0] == 0):
             log.info("all nodes hit.")
             return
@@ -144,57 +182,61 @@ class FIFO:
         no_hit_nodes = target_nodes[cache_no_hit]
         # 由于在调用时, target_nodes应该都不在缓存中(否则在之前sample时应该被剪枝), 因此应该有 len(target_nodes) == cache_no_hit
         assert(target_nodes.shape[0] == no_hit_nodes.shape[0])
-        pop_num = no_hit_nodes.shape[0] + len(self.cache_idx) - self.cache_size
+        pop_num = no_hit_nodes.shape[0] + self.cur_len - self.cache_size
         push_num = no_hit_nodes.shape[0]
-        tail = (self.head + len(self.cache_idx)) % (self.cache_size)
+        tail = (self.head + self.cur_len) % (self.cache_size)
         if pop_num > 0:
-            evit_item = self.cache_idx[0:pop_num]
-            self.cache_idx = self.cache_idx[pop_num:]
             # self.cache_entry_status[self.cache] -= pop_num
             # self.cache_data = self.cache_data[pop_num:, :]
             # push_idx = torch.arange(len(self.cache), self.cache_size, device=self.device)
             # self.cache_data = torch.cat((self.cache_data, target_feature), dim = 0)
             # 移动指针，避免移动数据开销
             if self.head + pop_num >= self.cache_size:
+                evit_item = self.cache_idx[self.head:self.cache_size]
                 push_idx = torch.arange(tail, self.cache_size, device=self.device)
                 if self.head + pop_num - self.cache_size > 0:
                     push_idx_part2 = torch.arange(0, self.head + pop_num - self.cache_size, device = self.device)
                     push_idx = torch.cat((push_idx, push_idx_part2), dim = 0)
+                    evit_item = torch.cat((evit_item, self.cache_idx[0:self.head + pop_num - self.cache_size]), dim = 0)
                 self.cache_data[push_idx] = target_feature
                 self.head = self.head + pop_num - self.cache_size
             else:
-                if (tail < self.head):
+                evit_item = self.cache_idx[self.head:self.head + pop_num]
+                if (tail <= self.head):
                     push_idx = torch.arange(tail, self.head + pop_num, device=self.device)
                 else:
-                    push_idx = torch.arange(tail, self.cache_size, device=self.device)
-                    push_idx_part = torch.arange(0, self.head + pop_num, device= self.device)
-                    push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
+                    if (tail + push_num - 1 < self.cache_size):
+                        push_idx = torch.arange(tail, tail + push_num, device=self.device)
+                    else:
+                        push_idx = torch.arange(tail, self.cache_size, device=self.device)
+                        push_idx_part = torch.arange(0, self.head + pop_num, device=self.device)
+                        push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
                 self.cache_data[push_idx] = target_feature
                 self.head += pop_num
         else:
-            if tail < self.head or tail + push_num < self.cache_size:
+            if tail <= self.head or tail + push_num < self.cache_size:
                 push_idx = torch.arange(tail, tail + push_num, device=self.device)
             else:
                 push_idx = torch.arange(tail, self.cache_size, device=self.device)
                 push_idx_part = torch.arange(0, tail + push_num - self.cache_size, device=self.device)
                 push_idx = torch.cat((push_idx, push_idx_part), dim = 0)
             self.cache_data[push_idx] = target_feature
+
+        self.cache_idx[push_idx] = no_hit_nodes
         
-        if no_hit_nodes.is_cuda:
-            # cache is [], stored in 'CPU'
-            self.cache_idx.extend(no_hit_nodes.cpu().tolist())
-        else:
-            self.cache_idx.extend(no_hit_nodes.tolist())
         if pop_num > 0:
             self.cache_entry_status[evit_item] = -1
-        assert(no_hit_nodes.shape[0] == push_idx.shape[0])
+            self.cur_len = self.cache_size
+        else:
+            self.cur_len = self.cur_len + push_num
+        assert(no_hit_nodes.shape[0] == push_idx.shape[0]), f"current push_idx shape: {push_idx.shape}, nodes shape: {no_hit_nodes.shape}"
         self.cache_entry_status[no_hit_nodes] = push_idx
 
     def get_hit_nodes(self, target_nodes, global_batch):
         # return the node that in the embedding cache(will be used as the stale representation)
         # need to check the staleness.. if stale, return None
         if global_batch % self.staleness_thre == 0:
-            log.info(f"{global_batch}, hit None(because refresh)")
+            # log.info(f"{global_batch}, hit None(because refresh)")
             return None, None, None, target_nodes
         if (target_nodes.device != self.device):
             target_nodes = target_nodes.to(self.device)
@@ -221,8 +263,9 @@ class FIFO:
     
     def reset(self):
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
-        self.cache_idx = []  # the cached idx
+        self.cache_idx = torch.zeros(self.cache_size, dtype=torch.int64, device=self.device) # the cached idx
         self.head = 0
+        self.cur_len = 0
     
     
 
