@@ -137,6 +137,7 @@ class FIFO:
                 # log.debug(f"{global_batch}, head remain, len: {self.cur_len}, head: {self.head}, tail: {tail}")
                 evit_item = self.cache_idx[self.head:self.head + pop_num]
                 if (tail <= self.head):
+                    # tail = head, 但此时pop > 0, 属于缓存满状态
                     push_idx = torch.arange(tail, self.head + pop_num, device=self.device)
                 else:
                     push_idx = torch.arange(tail, self.cache_size, device=self.device)
