@@ -224,7 +224,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     # Multi-threaded load of sets of (ids, adj, update)
     q = list()
     loader = list()
-    
+    start_time = time.time() 
     # When execute, need refresh the cache !!
     model.reset_embeddings()
 
@@ -297,7 +297,9 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         adjs = [adj.to(device) for adj in adjs_host]
 
         # Forward
+        n_id = n_id_q.get()
         n_id_cuda = n_id.to(device)
+        assert n_id_cuda.shape[0] == batch_inputs_cuda.shape[0], f"error in sampling, node id shape: {n_id_cuda.shape}, feature shape: {batch_inputs_cuda.shape}"
         out = model(batch_inputs_cuda, adjs, n_id_cuda)
         loss = F.nll_loss(out, batch_labels_cuda.long())
 
@@ -315,7 +317,6 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         data = pd.DataFrame([res])
         data.to_csv(log_file, mode='a',header=False,index=False)
         
-        n_id = n_id_q.get()
         del (n_id)
         if idx == 0:
             in_indices = in_indices_q.get()
@@ -330,12 +331,13 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     log.info(f"epoch: {epoch:02d}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
     # not cache pre-epoch embeddings
     
-    return total_loss, total_correct
+    return total_loss, total_correct, time.time() - start_time
 
 
 def train(epoch):
     model.train()
     neighbor_indice_time = 0
+    training_time = 0
     dataset.make_new_shuffled_train_idx()
     num_iter = int((dataset.shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
@@ -346,7 +348,7 @@ def train(epoch):
     total_loss = total_correct = 0
     num_sb = int((dataset.train_idx.numel()+args.batch_size *
                  args.sb_size-1)/(args.batch_size*args.sb_size))
-
+    
     for i in range(num_sb + 1):
         if args.verbose:
             tqdm.write(
@@ -375,10 +377,11 @@ def train(epoch):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct = execute(
+        total_loss, total_correct, train_time = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
         if args.verbose:
             tqdm.write('Step 3: Done')
+        training_time += train_time
 
         # Delete obsolete runtime files
         delete_trace(i)
@@ -390,7 +393,7 @@ def train(epoch):
     approx_acc = total_correct / dataset.train_idx.numel()
     log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
-    return loss, approx_acc
+    return loss, approx_acc, training_time
 
 
 @torch.no_grad()
@@ -423,7 +426,7 @@ def inference(mode='test'):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices = inspect(
+        cache, initial_cache_indices, _ = inspect(
             i, last=(i == num_sb), mode=mode)
         torch.cuda.synchronize()
         if args.verbose:
@@ -443,7 +446,7 @@ def inference(mode='test'):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct = execute(
+        total_loss, total_correct, _ = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode=mode)
         if args.verbose:
             tqdm.write('Step 3: Done')
@@ -475,11 +478,11 @@ if __name__ == '__main__':
             tqdm.write('Running Epoch {}...'.format(epoch))
 
         start = time.time()
-        loss, acc = train(epoch)
+        loss, acc, training_time = train(epoch)
         end = time.time()
         log.info(
             f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
-        log.info('Epoch time: {:.4f} ms'.format((end - start) * 1000))
+        log.info('Epoch time: {:.4f} s, training time: {:.4f} s'.format(end - start, training_time))
 
         if epoch > 3 and not args.train_only:
             val_loss, val_acc = inference(mode='valid')
