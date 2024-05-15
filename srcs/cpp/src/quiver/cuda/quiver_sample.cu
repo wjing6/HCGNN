@@ -214,41 +214,6 @@ class TorchQuiver
         return std::make_tuple(out_neighbor, out_eid);
     }
 
-    std::tuple<torch::Tensor, torch::Tensor> remove_embedding_cache(
-        const cudaStream_t stream, const torch::Tensor &outputs,
-        const torch::Tensor &outputs_ptr, const torch::Tensor &cache_address)
-    {
-        // now only using cpu, stream not used
-        // return tensor, which removes the embedding included in cache_address
-
-        // const auto policy = thrust::cuda::par.on(stream);
-        std::vector<int64_t> out_vertice;
-        out_vertice.clear();
-        int64_t input_vertices = outputs_ptr.numel();
-        int64_t total_neigh_num = outputs.numel();
-        auto vertice_data = outputs.data_ptr<int64_t>();
-        auto vertice_ptr = outputs_ptr.data_ptr<int64_t>();
-        // naive implementation..
-        for (int i = 0; i < input_vertices; ++i) {
-            int64_t start_idx = vertice_ptr[i];
-            int64_t end_idx;
-            if (i != input_vertices - 1) {
-                int64_t end_idx = vertice_ptr[i + 1];
-            } else {
-                int64_t end_idx = total_neigh_num;
-            }
-            for (int v_s = start_idx; v_s < end_idx; ++v_s) {
-                if (cache_address[vertice_data[v_s]] == -1) {
-                    out_vertice.emplace_back(vertice_data[v_s]);
-                }
-            }
-        }
-        auto options = vertices.options();
-        auto out_vertice_tensor = torch::from_blob(
-            out_vertice.data(), {out_vertice.size(), 1}, options);
-        return out_vertice_tensor;
-    }
-
     static void reindex_kernel(const cudaStream_t stream,
                                thrust::device_vector<T> &inputs,
                                thrust::device_vector<T> &outputs,
@@ -553,9 +518,6 @@ void register_cuda_quiver_sample(pybind11::module &m)
         .def("sample_sub", &quiver::TorchQuiver::sample_sub_with_stream,
              py::call_guard<py::gil_scoped_release>())
         .def("sample_neighbor", &quiver::TorchQuiver::sample_neighbor,
-             py::call_guard<py::gil_scoped_release>())
-        .def("remove_embedding_cache",
-             &quiver::TorchQuiver::remove_embedding_cache,
              py::call_guard<py::gil_scoped_release>())
         .def("cal_neighbor_prob", &quiver::TorchQuiver::cal_neighbor_prob,
              py::call_guard<py::gil_scoped_release>())

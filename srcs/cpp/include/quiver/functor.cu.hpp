@@ -23,11 +23,11 @@ class cap_by_condition
 {
     const T cap;
     const T invalid_state;
-    thrust::device_ptr<const T> cache_idx;
+    thrust::device_vector<const T> cache_idx;
 
   public:
     cap_by_condition(const T cap, const T invalid_state,
-                     thrust::device_ptr<const T> cache_idx)
+                     thrust::device_vector<const T> cache_idx)
         : cap(cap), invalid_state(invalid_state), cache_idx(cache_idx) {}
     
     __host__ __device__ T operator()(T x) const
