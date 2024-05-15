@@ -1,5 +1,7 @@
 #pragma once
 #include <thrust/tuple.h>
+#include <thrust/device_vector.h>
+#include <torch/extension.h>
 
 template <typename T>
 class cap_by
@@ -11,6 +13,26 @@ class cap_by
 
     __host__ __device__ T operator()(T x) const
     {
+        if (x > cap) { return cap; }
+        return x;
+    }
+};
+
+template <typename T>
+class cap_by_condition
+{
+    const T cap;
+    const T invalid_state;
+    thrust::device_ptr<const T> cache_idx;
+
+  public:
+    cap_by_condition(const T cap, const T invalid_state,
+                     thrust::device_ptr<const T> cache_idx)
+        : cap(cap), invalid_state(invalid_state), cache_idx(cache_idx) {}
+    
+    __host__ __device__ T operator()(T x) const
+    {
+        if (cache_idx[x] == invalid_state) { return static_cast<T>(1); }
         if (x > cap) { return cap; }
         return x;
     }

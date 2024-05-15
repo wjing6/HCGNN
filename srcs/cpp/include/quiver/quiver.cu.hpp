@@ -377,7 +377,7 @@ class quiver<T, CUDA>
         }
     }
 
-    void new_sample(const cudaStream_t stream, int k, T *input_begin,
+    void new_sample(const cudaStream_t stream, int k, T *input_begin, T *cache_idx,
                     int input_size, T *output_ptr_begin, T *output_count_begin,
                     T *output_begin, T *output_idx) const
     {
@@ -391,13 +391,13 @@ class quiver<T, CUDA>
             CSRRowWiseSampleKernel<T, BLOCK_WARPS, TILE_SIZE>
                 <<<grid, block, 0, stream>>>(
                     0, k, input_size, input_begin,
-                    thrust::raw_pointer_cast(row_ptr_.data()),
+                    cache_idx, thrust::raw_pointer_cast(row_ptr_.data()),
                     thrust::raw_pointer_cast(col_idx_.data()), output_ptr_begin,
                     output_count_begin, output_begin, output_idx);
         } else {
             CSRRowWiseSampleKernel<T, BLOCK_WARPS, TILE_SIZE>
                 <<<grid, block, 0, stream>>>(
-                    0, k, input_size, input_begin, row_ptr_mapped_,
+                    0, k, input_size, input_begin, cache_idx, row_ptr_mapped_,
                     col_idx_mapped_, output_ptr_begin, output_count_begin,
                     output_begin, output_idx);
         }

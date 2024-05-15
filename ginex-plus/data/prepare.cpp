@@ -643,13 +643,19 @@ void prepareFeature() {
 
 }
 
-void randomFeature(uint64_t total_nodes, uint64_t feature_dim) {   
+void randomFeature(std::string dataset, uint64_t total_nodes, uint64_t train_num, uint64_t feature_dim) {   
     // according to the total node number and feature dimensions, generate the random feature tensor
-    auto features = torch::rand({total_nodes, feature_dim});
-    auto bytes = torch::jit::pickle_save(features);
-    std::ofstream fout("x.zip", std::ios::out | std::ios::binary);
-    fout.write(bytes.data(), bytes.size());
-    fout.close();
+    auto features = torch::rand({total_nodes, feature_dim}, torch::dtype(torch::kFloat32));
+    auto bytes_feature = torch::jit::pickle_save(features);
+    std::ofstream fout_feature("features.dat", std::ios::out | std::ios::binary);
+    fout_feature.write(bytes_feature.data(), bytes_feature.size());
+    fout_feature.close();
+
+    auto labels = torch::rand({train_num, 1}, torch::dtype(torch::kFloat32));
+    auto bytes = torch::jit::pickle_save(labels);
+    std::ofstream fout_label("labels.dat", std::ios::out | std::ios::binary);
+    fout_label.write(bytes.data(), bytes.size());
+    fout_label.close();
     log_info("random generating feature finish...");
 }
 
@@ -661,8 +667,6 @@ load_from_part_file(std::string input_folder_path, bool store = false, bool deli
     uint64_t *total = new uint64_t [hashbucket];
     uint64_t *offset = new uint64_t [hashbucket];
     uint64_t num_edges;
-
-
     Extractmap(input_folder_path, nodeRemap, offset, total, num_edges, hashbucket, delimiter);
 
     log_info("num edges: %lu", num_edges);
@@ -697,5 +701,8 @@ PYBIND11_MODULE(prepare_data_from_scratch, m)
           py::call_guard<py::gil_scoped_release>());
     m.def("load_from_part_file", &load_from_part_file, 
           "extract edge list from split files(hdfs)",
+          py::call_guard<py::gil_scoped_release>());
+    m.def("randomFeature", &randomFeature,
+          "generate the features randomly",
           py::call_guard<py::gil_scoped_release>());
 }

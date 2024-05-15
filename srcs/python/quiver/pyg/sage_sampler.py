@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import torch.multiprocessing as mp
 import itertools
 import time
+import os
 import quiver
 import quiver.utils as quiver_utils
 
@@ -56,6 +57,7 @@ class GraphSageSampler:
     def __init__(self,
                  csr_topo: quiver_utils.CSRTopo,
                  sizes: List[int],
+                 exp_name, sb,
                  embedding_cache,
                  # consist of multi-layer 
                  device = 0,
@@ -71,6 +73,9 @@ class GraphSageSampler:
         self.csr_topo = csr_topo
         self.mode = mode
         self.embedding_cache = embedding_cache
+        self.exp_name = exp_name
+        self.sb = sb
+        # self.cur_batch = 0
         if self.mode in ["GPU", "UVA"] and device is not _FakeDevice and  device >= 0:
             edge_id = torch.zeros(1, dtype=torch.long)
             self.quiver = qv.device_quiver_from_csr_array(self.csr_topo.indptr,
@@ -84,7 +89,10 @@ class GraphSageSampler:
         self.device = device
         self.ipc_handle_ = None
 
-    def sample_layer(self, batch, size):
+        self.batch_count = torch.zeros(1, dtype=torch.int).share_memory_()
+        self.lock = mp.Lock()
+
+    def sample_layer(self, batch, size, embedding_cache):
         # sample need to exclude the stale embedding, then re-include it when passing to topper-layer
         self.lazy_init_quiver()
         if not isinstance(batch, torch.Tensor):
@@ -94,10 +102,10 @@ class GraphSageSampler:
         n_id = batch.to(self.device)
         size = size if size != -1 else self.csr_topo.node_count
         if self.mode in ["GPU", "UVA"]:
-            n_id, count = self.quiver.sample_neighbor(0, n_id, size)
+            n_id, count = self.quiver.sample_neighbor(0, n_id, embedding_cache, size)
         else:
             n_id, count = self.quiver.sample_neighbor(n_id, size)
-            
+        
         return n_id, count
 
     def lazy_init_quiver(self):
@@ -117,16 +125,9 @@ class GraphSageSampler:
                                                        edge_id, self.device,
                                                        self.mode != "UVA")
 
-    def reindex(self, inputs, outputs, outputs_filter, counts):
-        return self.quiver.reindex_single(inputs, outputs, outputs_filter, counts)
+    def reindex(self, inputs, outputs, counts):
+        return self.quiver.reindex_single(inputs, outputs, counts)
     
-    def remove_stale_embedding(self, vertices, tag):
-        # tag means the k-hop, name like 'layer_K'
-        if self.mode in ['GPU', 'UVA']:
-            out = self.quiver.remove_embedding_cache(0, vertices, self.embedding_cache[tag].address_table)
-        else:
-            out = self.quiver.remove_embedding_cache(vertices, self.embedding_cache[tag].address_table)
-        return out
 
     def sample(self, input_nodes):
         """Sample k-hop neighbors from input_nodes
@@ -155,25 +156,48 @@ class GraphSageSampler:
 
         batch_size = len(nodes)
         for layer, size in enumerate(self.sizes):
-            out, cnt = self.sample_layer(nodes, size)
-            # TODO: add filter for out
+            tmp_tag = 'layer_' + str(layer)
+            self.embedding_cache[tmp_tag].check_if_fresh(self.batch_count.item())
+
+            out, cnt = self.sample_layer(nodes, size, self.embedding_cache[tmp_tag])
+            # 这里的 out 和 cnt 都没有经过去重, 需要经过去重后再进行 save
             # out: the total 'global' nID, cnt: the row ptr
-            if layer != len(self.sizes):
-                out_filter = self.remove_stale_embedding(out, f"layer_{layer}")
+            frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+            # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
+
+            self.embedding_cache[tmp_tag].evit_and_place_indice(frontier, self.batch_count.item())
             # reindex still use the out, as we need to put the embedding 'back' to its initial position
-            frontier, filter_frontier, row_idx, col_idx = self.reindex(nodes, out, out_filter, cnt)
             row_idx, col_idx = col_idx, row_idx
-            edge_index = torch.stack([row_idx, col_idx], dim=0)
+            # edge_index = torch.stack([row_idx, col_idx], dim=0)
 
-            adj_size = torch.LongTensor([
-                frontier.size(0),
-                nodes.size(0),
-            ])
+            # TODO: more check!
+            if row_idx.device.type == 'cpu':
+                row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
+            
+            adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),                                      
+                    is_sorted=True)  
+            
+            size = adj_t.sparse_sizes()[::-1]
             e_id = torch.tensor([])
-            adjs.append(Adj(edge_index, e_id, adj_size))
+            adjs.append(Adj(adj_t, e_id, size))
             nodes = frontier
+        
+        adjs = adjs[0] if len(adjs) == 1 else adjs[::-1] # reverse
+        if frontier.device.type == 'cpu':
+            frontier = frontier.to('cpu')
+        # TODO: make use of 'transform' in PyG
+        # out = (batch_size, nodes, adjs)
+        # out = self.transform(*out) if self.transform is not None else out
+        
+        self.lock.acquire()
+        n_id_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_ids_' + str(self.batch_count.item()) + '.pth')
+        adjs_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_adjs_' + str(self.batch_count.item()) + '.pth')
+        self.batch_count += 1
+        self.lock.release()
 
-        return nodes, batch_size, adjs[::-1]
+        torch.save(frontier, n_id_filename)
+        torch.save(adjs, adjs_filename)
+        # return nodes, batch_size, adjs[::-1]
 
     def sample_prob(self, train_idx, total_node_count):
         self.lazy_init_quiver()
@@ -345,7 +369,6 @@ class MixedGraphSageSampler:
     def iter_sampler(self):
         self.lazy_init()
         try:
-
             while True:
                 self.decide_task_num()
                 self.assign_cpu_tasks()

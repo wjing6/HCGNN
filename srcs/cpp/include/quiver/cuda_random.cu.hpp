@@ -7,7 +7,8 @@ constexpr int WARP_SIZE = 32;
 template <typename T, int BLOCK_WARPS, int TILE_SIZE>
 __global__ void CSRRowWiseSampleKernel(
     const uint64_t rand_seed, int num_picks, const int64_t num_rows,
-    const T *const in_rows, const T *const in_ptr, const T *const in_index,
+    const T *const in_rows, const T *const cache_idx,
+    const T *const in_ptr, const T *const in_index,
     T *const out_ptr, T *const out_count_ptr, T *const out, T *const out_idxs)
 {
     // we assign one warp per row
@@ -24,43 +25,50 @@ __global__ void CSRRowWiseSampleKernel(
 
     while (out_row < last_row) {
         const int64_t row = in_rows[out_row];
-
         const int64_t in_row_start = in_ptr[row];
         const int64_t deg = in_ptr[row + 1] - in_row_start;
 
         const int64_t out_row_start = out_ptr[out_row];
 
-        if (deg <= num_picks) {
-            // just copy row
-            for (int idx = threadIdx.x; idx < deg; idx += WARP_SIZE) {
-                const T in_idx = in_row_start + idx;
-                out[out_row_start + idx] = in_index[in_idx];
+        if (cache_idx[row] != static_cast<T>(-1)) {
+            // hit in cache
+            if (threadIdx.x == 0) {
+                out[out_row_start] = row;
             }
+            __syncwarp();
         } else {
-            // generate permutation list via reservoir algorithm
-            for (int idx = threadIdx.x; idx < num_picks; idx += WARP_SIZE) {
-                out_idxs[out_row_start + idx] = idx;
-            }
-            __syncwarp();
-
-            for (int idx = num_picks + threadIdx.x; idx < deg;
-                 idx += WARP_SIZE) {
-                const int num = curand(&rng) % (idx + 1);
-                if (num < num_picks) {
-                    // use max so as to achieve the replacement order the serial
-                    // algorithm would have
-                    using Type = unsigned long long int;
-                    atomicMax(reinterpret_cast<Type *>(out_idxs +
-                                                       out_row_start + num),
-                              static_cast<Type>(idx));
+            if (deg <= num_picks) {
+                // just copy row
+                for (int idx = threadIdx.x; idx < deg; idx += WARP_SIZE) {
+                    const T in_idx = in_row_start + idx;
+                    out[out_row_start + idx] = in_index[in_idx];
                 }
-            }
-            __syncwarp();
+            } else {
+                // generate permutation list via reservoir algorithm
+                for (int idx = threadIdx.x; idx < num_picks; idx += WARP_SIZE) {
+                    out_idxs[out_row_start + idx] = idx;
+                }
+                __syncwarp();
 
-            // copy permutation over
-            for (int idx = threadIdx.x; idx < num_picks; idx += WARP_SIZE) {
-                const T perm_idx = out_idxs[out_row_start + idx] + in_row_start;
-                out[out_row_start + idx] = in_index[perm_idx];
+                for (int idx = num_picks + threadIdx.x; idx < deg;
+                    idx += WARP_SIZE) {
+                    const int num = curand(&rng) % (idx + 1);
+                    if (num < num_picks) {
+                        // use max so as to achieve the replacement order the serial
+                        // algorithm would have
+                        using Type = unsigned long long int;
+                        atomicMax(reinterpret_cast<Type *>(out_idxs +
+                                                        out_row_start + num),
+                                static_cast<Type>(idx));
+                    }
+                }
+                __syncwarp();
+
+                // copy permutation over
+                for (int idx = threadIdx.x; idx < num_picks; idx += WARP_SIZE) {
+                    const T perm_idx = out_idxs[out_row_start + idx] + in_row_start;
+                    out[out_row_start + idx] = in_index[perm_idx];
+                }
             }
         }
 

@@ -1,3 +1,19 @@
+## CacheGNN - a single out-of-core GNN training system with reduced IO accesses through the use of embedding cache
+We build CacheGNN on the top of Quiver and Ginex.
+
+Hence, to run CacheGNN, you should build Quiver and Ginex firstly by following the instructions of Quiver(https://github.com/quiver-team/torch-quiver/blob/main/README.md) and Ginex(https://github.com/SNU-ARC/Ginex/blob/main/README.md).
+
+# How to run
+
+1. Build Quiver and Ginex
+2. Download the dataset
+3. Run the following command
+
+-------------------------------------------------------------------------------
+
+
+
+
 [pypi-image]: https://badge.fury.io/py/torch-geometric.svg
 [pypi-url]: https://pypi.org/project/torch-quiver/
 

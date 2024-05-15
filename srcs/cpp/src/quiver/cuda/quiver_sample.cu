@@ -113,10 +113,9 @@ class TorchQuiver
     }
 
     std::tuple<torch::Tensor, torch::Tensor>
-    sample_neighbor(int stream_num, const torch::Tensor &vertices, int k)
+    sample_neighbor(int stream_num, const torch::Tensor &vertices, const torch::Tensor &cache_idx, int k)
     {
         // according the embedding indice, filter the nodes
-        // num_nodes: 
         cudaStream_t stream = 0;
         if (!pool_.empty()) { stream = (pool_)[stream_num]; }
         const auto policy = thrust::cuda::par.on(stream);
@@ -124,7 +123,7 @@ class TorchQuiver
         thrust::device_vector<T> inputs;
         thrust::device_vector<T> outputs;
         thrust::device_vector<T> output_counts;
-        sample_kernel(stream, vertices, k, inputs, outputs, output_counts, num_nodes, exist_indice_ptr);
+        sample_kernel(stream, vertices, cache_idx, k, inputs, outputs, output_counts);
         torch::Tensor neighbors =
             torch::empty(outputs.size(), vertices.options());
         torch::Tensor counts =
@@ -137,6 +136,7 @@ class TorchQuiver
 
     std::tuple<torch::Tensor, torch::Tensor>
     sample_kernel(const cudaStream_t stream, const torch::Tensor &vertices,
+                  const torch::Tensor &cache_idx,
                   int k, thrust::device_vector<T> &inputs,
                   thrust::device_vector<T> &outputs,
                   thrust::device_vector<T> &output_counts) const
@@ -147,28 +147,36 @@ class TorchQuiver
         const auto policy = thrust::cuda::par.on(stream);
         thrust::device_vector<T> output_ptr;
         thrust::device_vector<T> output_idx;
+        thrust::device_vector<T> cache_idx_vec;
+
         const T *p = vertices.data_ptr<T>();
+        const T *idx_ptr = cache_idx.data_ptr<T>();
+
         const size_t bs = vertices.size(0);
+        const size_t num_nodes = cache_idx.size(0);
 
         {
             TRACE_SCOPE("alloc_1");
             inputs.resize(bs);
             output_counts.resize(bs);
             output_ptr.resize(bs);
+            cache_idx_vec.resize(num_nodes);
         }
         // output_ptr is exclusive prefix sum of output_counts(neighbor counts
         // <= k)
         {
             TRACE_SCOPE("prepare");
             thrust::copy(p, p + bs, inputs.begin());
+            thrust::copy(idx_ptr, idx_ptr + num_nodes, cache_idx_vec.begin());
             // quiver_.to_local(stream, inputs);
             quiver_.degree(stream, inputs.data(), inputs.data() + inputs.size(),
                            output_counts.data());
             if (k >= 0) {
                 thrust::transform(policy, output_counts.begin(),
                                   output_counts.end(), output_counts.begin(),
-                                  cap_by<T>(k));
+                                  cap_by_condition<T>(k, static_cast<T>(-1), cache_idx_vec));
             }
+            // return '1' if hit in cache
             thrust::exclusive_scan(policy, output_counts.begin(),
                                    output_counts.end(), output_ptr.begin());
             tot = thrust::reduce(policy, output_counts.begin(),
@@ -190,6 +198,7 @@ class TorchQuiver
             TRACE_SCOPE("sample");
             quiver_.new_sample(
                 stream, k, thrust::raw_pointer_cast(inputs.data()),
+                thrust::raw_pointer_cast(cache_idx_vec.data()),
                 inputs.size(), thrust::raw_pointer_cast(output_ptr.data()),
                 thrust::raw_pointer_cast(output_counts.data()),
                 thrust::raw_pointer_cast(outputs.data()),
@@ -243,10 +252,8 @@ class TorchQuiver
     static void reindex_kernel(const cudaStream_t stream,
                                thrust::device_vector<T> &inputs,
                                thrust::device_vector<T> &outputs,
-                               thrust::device_vector<T> &subset,
-                               thrust::device_vector<T> &subset_filter)
+                               thrust::device_vector<T> &subset)
     {
-        // subset_filter output the nid which remove the vertex in 'stale-embedding cache'
         const auto policy = thrust::cuda::par.on(stream);
         HostOrderedHashTable<T> *table;
         // reindex
@@ -341,10 +348,8 @@ class TorchQuiver
         return std::make_tuple(out_vertices, row_idx, col_idx);
     }
     std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
-    reindex_single(torch::Tensor inputs, torch::Tensor outputs,
-                   torch::Tensor outputs_filter, torch::Tensor count)
+    reindex_single(torch::Tensor inputs, torch::Tensor outputs, torch::Tensor count)
     {
-        // TODO: adding stale_embedding_vertices, reindex it!
         using T = int64_t;
         cudaStream_t stream = 0;
         const auto policy = thrust::cuda::par.on(stream);
@@ -368,10 +373,9 @@ class TorchQuiver
         using it = thrust::counting_iterator<T>;
 
         thrust::device_vector<T> subset;
-        thrust::device_vector<T> subset_filter;
         TorchQuiver::reindex_kernel(stream, total_inputs, total_outputs,
                                     subset);
-
+        // subset 保留去重后的 global id, total_outputs 则是对应重新map的 local id
         int tot = total_outputs.size();
         torch::Tensor out_vertices =
             torch::empty(subset.size(), inputs.options());

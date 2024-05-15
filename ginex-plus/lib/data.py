@@ -1,56 +1,194 @@
 import os
 import json
 import numpy as np
+import sys
+import scipy
 import torch
 from lib.utils import *
+from lib.cache import NeighborCache
+import prepare_data_from_scratch
+from ogb.nodeproppred import PygNodePropPredDataset
+sys.path.append("../")
+from log import log
 
 
-def get_mmap_dataset(path='../dataset/ogbn-papers100M-ginex', split_idx_path=None):
-    indptr_path = os.path.join(path, 'indptr.dat')
-    indices_path = os.path.join(path, 'indices.dat')
-    features_path = os.path.join(path, 'features.dat')
-    labels_path = os.path.join(path, 'labels.dat')
-    conf_path = os.path.join(path, 'conf.json')
+def prepare_topo(root, dataset, edge_index, train_idx, feature_dim, num_classes = 1000):
+    src = edge_index[0].numpy()
+    dst = edge_index[1].numpy()
+    num_nodes = max(np.max(src), np.max(dst)) + 1
+    coo = edge_index.numpy()
+    log.info(f"{dataset} nodes number: {num_nodes}")
+    data = np.ones_like(coo[0])
+    coo = scipy.sparse.coo_matrix((data, (coo[0], coo[1])), shape=(num_nodes, num_nodes))
+    csc_mat = coo.tocsc()
+    csr_mat = coo.tocsr()
+    indptr = csc_mat.indptr.astype(np.int64)
+    indices = csc_mat.indices.astype(np.int64)
+    dataset_folder = os.path.join(root, dataset)
+    os.makedirs(dataset_folder, exist_ok=True)
+    indptr_path = os.path.join(dataset_folder, 'indptr.dat')
+    indices_path = os.path.join(dataset_folder, 'indices.dat')
+    features_path = os.path.join(dataset_folder, 'features.dat')
+    labels_path = os.path.join(dataset_folder, 'labels.dat')
+    conf_path = os.path.join(dataset_folder, 'conf.json')
+    # split_idx_path = os.path.join(dataset_folder, 'split_idx.pth')
+    # TODO: currently not used!
+    if dataset in ["ogbn-products", 'ogbn-papers100M']:
+        # if exist true labels, just use them!
+        dataset = PygNodePropPredDataset(dataset, root)
+        features = dataset[0].x
+        labels = dataset[0].y
+        log.info('Saving features...')
+        features_mmap = np.memmap(features_path, mode='w+', shape=dataset[0].x.shape, dtype=np.float32)
+        features_mmap[:] = features[:]
+        features_mmap.flush()
+        log.info('Done!')
 
-    conf = json.load(open(conf_path, 'r'))
+        log.info('Saving labels...')
+        labels = labels.type(torch.float32)
+        labels_mmap = np.memmap(labels_path, mode='w+', shape=dataset[0].y.shape, dtype=np.float32)
+        labels_mmap[:] = labels[:]
+        labels_mmap.flush()
+        log.info('Done!')
 
-    indptr = np.fromfile(indptr_path, dtype=conf['indptr_dtype']).reshape(tuple(conf['indptr_shape']))
-    indices = np.memmap(indices_path, mode='r', shape=tuple(conf['indices_shape']), dtype=conf['indices_dtype'])
-    features_shape = conf['features_shape']
-    features = np.memmap(features_path, mode='r', shape=tuple(features_shape), dtype=conf['features_dtype'])
-    labels = np.fromfile(labels_path, dtype=conf['labels_dtype'], count=conf['num_nodes']).reshape(tuple([conf['labels_shape'][0]]))
+        num_classes = dataset.num_classes
+    if os.path.exists(indptr_path) and os.path.exists(indices_path):
+        pass
+    else:
+        log.info('Saving indptr...')
+        indptr_mmap = np.memmap(indptr_path, mode='w+', shape=indptr.shape, dtype=indptr.dtype)
+        indptr_mmap[:] = indptr[:]
+        indptr_mmap.flush()
+        log.info('Done!')
 
-    indptr = torch.from_numpy(indptr)
-    indices = torch.from_numpy(indices)
-    features = torch.from_numpy(features)
-    labels = torch.from_numpy(labels)
+        log.info('Saving indices...')
+        indices_mmap = np.memmap(indices_path, mode='w+', shape=indices.shape, dtype=indices.dtype)
+        indices_mmap[:] = indices[:]
+        indices_mmap.flush()
+        log.info('Done!')
+    
+    log.info('Making conf file...')
+    mmap_config = dict()
+    mmap_config['num_nodes'] = num_nodes
+    mmap_config['indptr_shape'] = tuple(indptr.shape)
+    mmap_config['indptr_dtype'] = str(indptr.dtype)
+    mmap_config['indices_shape'] = tuple(indices.shape)
+    mmap_config['indices_dtype'] = str(indices.dtype)
+    mmap_config['features_shape'] = tuple([num_nodes, feature_dim])
+    mmap_config['features_dtype'] = str(np.float32)
+    mmap_config['labels_shape'] = tuple(train_idx.shape)
+    mmap_config['labels_dtype'] = str(np.float32)
+    mmap_config['num_classes'] = num_classes
+    json.dump(mmap_config, open(conf_path, 'w'))
+    log.info('Done!')
 
-    num_nodes = conf['num_nodes']
-    num_features = conf['features_shape'][1]
-    num_classes = conf['num_classes']
+    log.info('Calculating score for neighbor cache construction...')
+    score_path = os.path.join(dataset_folder, 'nc_score.pth')
+    
+    csc_indptr_tensor = torch.from_numpy(csc_mat.indptr.astype(np.int64))
+    csr_indptr_tensor = torch.from_numpy(csr_mat.indptr.astype(np.int64))
+    log.info(f"{csc_indptr_tensor.shape}, {csr_indptr_tensor.shape}")
+    if not os.path.exists(score_path):
+        eps = 0.00000001
+        in_num_neighbors = (csc_indptr_tensor[1:] - csc_indptr_tensor[:-1]) + eps
+        out_num_neighbors = (csr_indptr_tensor[1:] - csr_indptr_tensor[:-1]) + eps
+        score = out_num_neighbors / in_num_neighbors
+        log.info('Saving score...')
+        torch.save(score, score_path)
+        log.info('Done!')        
 
-    split_idx = torch.load(split_idx_path)
-    train_idx = split_idx['train']
-    val_idx = split_idx['valid']
-    test_idx = split_idx['test']
+    indptr_shape = indptr.shape
+    return indptr_path, indptr_shape, indices_path, score_path
 
-    return indptr, indices, features, labels, num_features, num_classes, num_nodes, train_idx, val_idx, test_idx
 
+def get_edge_index(root, dataset_name, f_dim, exist_binary = True):
+    if dataset_name in ["ogbn-products", 'ogbn-papers100M']:
+        dataset = PygNodePropPredDataset(dataset_name, root)
+        split_idx = dataset.get_idx_split()
+        data = dataset[0]
+        feature_dim = data.x.shape[1]
+        num_nodes = data.num_nodes
+        edge_index = data.edge_index
+        train_idx = split_idx['train']
+    elif dataset_name in ["friendster", "twitter"]:
+        dataset_folder = os.path.join(root, dataset_name)
+        feature_dim = f_dim
+        if not exist_binary:
+            file_name = dataset_name + ".csv"
+            dataset_path = os.path.join(dataset_folder, file_name)
+            edge_index, num_nodes = prepare_data_from_scratch.load_edge_list(
+                dataset_path, "#", True)
+        else:
+            file_name = dataset_name + ".bin"
+            dataset_path = os.path.join(dataset_folder, file_name)
+            edge_index, num_nodes = prepare_data_from_scratch.load_edge_list_from_binary(dataset_path)
+        edge_index = edge_index.t()
+        log.info(f"edge_index.shape: {edge_index.shape}")
+        train_idx_path = os.path.join(dataset_folder, "train_idx.pth")
+        if os.path.exists(train_idx_path):
+            train_idx = torch.load(train_idx_path)
+        else:
+            train_idx = sample(range(num_nodes), int(0.1 * num_nodes))
+            train_idx = torch.tensor(train_idx)
+            torch.save(train_idx_path, train_idx)
+    elif dataset_name in ["bytedata_caijing", "douyin_fengkong_guoqing_0709", 
+                          "douyin_fengkong_sucheng_0813", "caijing_xiaowei_wangzhenchao", 
+                          "bytedata_part"]:
+        feature_dim = f_dim
+        dataset_folder = os.path.join(root, dataset_name)
+        if not exist_binary:
+            edge_table_folder = os.path.join(dataset_folder, "edge_tables")
+            if dataset_name in ["bytedata_caijing"]:
+                edge_index, num_nodes = prepare_data_from_scratch.load_from_part_file(edge_table_folder, True, True)
+            else:
+                edge_index, num_nodes = prepare_data_from_scratch.load_from_part_file(edge_table_folder, True, False)
+        else:
+            file_name = "b.bin"
+            dataset_path = os.path.join(dataset_folder, file_name)
+            edge_index, num_nodes = prepare_data_from_scratch.load_edge_list_from_binary(dataset_path)
+        edge_index = edge_index.t()
+        train_idx_path = os.path.join(dataset_folder, "train_idx.pth")
+        if os.path.exists(train_idx_path):
+            train_idx = torch.load(train_idx_path)
+        else:
+            train_idx = sample(range(num_nodes), int(0.1 * num_nodes))
+            train_idx = torch.tensor(train_idx)
+            torch.save(train_idx_path, train_idx)
+    else:
+        log.error("unsupported dataset!")
+    log.info(f"{dataset} feature dimension is {feature_dim}, num nodes is {num_nodes}")
+    # remove self-loop
+    if dataset_name not in ["igb-tiny", "igb-small", "igb-medium", "igb-large", "igb-full"]:
+        mask = edge_index[0] != edge_index[1]
+        edge_index = edge_index[:, mask]
+        log.info(f"remove self loop finish.. after remove, the edge number is {format(edge_index.shape[1])}")
+    
+    return edge_index, num_nodes, feature_dim, train_idx
 
 class GinexDataset():
-    def __init__(self, path='../dataset/ogbn-papers100M-ginex', split_idx_path=None, score_path=None):
+    def __init__(self, path, dataset=None, split_idx_path=None, score_path=None):
+        self.root_path = path
+        self.dataset = dataset
+        self.feature_dim = 256
+        # TODO: make it adjustable!
+
         self.indptr_path = os.path.join(path, 'indptr.dat')
         self.indices_path = os.path.join(path, 'indices.dat')
         self.features_path = os.path.join(path, 'features.dat')
         self.labels_path = os.path.join(path, 'labels.dat')
         conf_path = os.path.join(path, 'conf.json')
         self.conf = json.load(open(conf_path, 'r'))
+        
 
-        split_idx = torch.load(split_idx_path)
-        self.train_idx = split_idx['train']
-        self.val_idx = split_idx['valid']
-        self.test_idx = split_idx['test']
-
+        if split_idx_path is not None:
+            split_idx = torch.load(split_idx_path)
+            self.train_idx = split_idx['train']
+            self.val_idx = split_idx['valid']
+            self.test_idx = split_idx['test']
+        else:
+            train_idx_path = os.path.join(path, 'train_idx.pth')
+            self.train_idx = torch.load(self.train_idx_path)
+        
         self.score_path = score_path
 
         self.num_nodes = self.conf['num_nodes']
@@ -104,3 +242,41 @@ class GinexDataset():
 
     def get_score(self):
         return torch.load(self.score_path)
+
+    def prepare_dataset(self):
+        edge_index, _, feature_dim, train_idx = get_edge_index(self.root_path, self.dataset, self.feature_dim, False)
+        self.edge_index = edge_index
+        self.train_idx = train_idx
+        prepare_topo(self.root_path, self.dataset, edge_index, train_idx, feature_dim)
+        log.info("prepare dataset finished")
+    
+    def get_edge_and_train(self):
+        # TODO: 统一 quiver 和 ginex 的调用接口, 减少 edge_index 和 indptr 的冗余存储
+        return self.edge_index, self.train_idx
+
+
+    def save_neighbor_cache(self, neigh_cache_size = None):
+        log.info('Creating neighbor cache...')
+        score = self.get_score()
+        rowptr, col = self.get_adj_mat()
+        num_nodes = self.num_nodes
+        if neigh_cache_size is not None:
+            # TODO: NeighborCache 同时支持 prop 和 size 参数
+            neighbor_cache = NeighborCache(neigh_cache_size, score, rowptr, self.indices_path, num_nodes)
+        else:
+            # cache all the neighbor
+            neighbor_cache = NeighborCache(0, score, rowptr, self.indices_path, num_nodes, 1)
+        del(score)
+
+        log.info('Saving neighbor cache...')
+        if neigh_cache_size is not None:
+            cache_filename = str(self.root_path) + '/nc_size_' + str(neigh_cache_size)
+            neighbor_cache.save(neighbor_cache.cache.numpy(), cache_filename)
+            cache_tbl_filename = str(self.root_path) + '/nctbl_size_' + str(neigh_cache_size)
+            neighbor_cache.save(neighbor_cache.address_table.numpy(), cache_tbl_filename)
+        else:
+            cache_filename = str(self.root_path) + '/nc_all'
+            neighbor_cache.save(neighbor_cache.cache.numpy(), cache_filename)
+            cache_tbl_filename = str(self.root_path) + '/nctbl_all'
+            neighbor_cache.save(neighbor_cache.address_table.numpy(), cache_tbl_filename)
+        log.info('Saving neighbor cache done!')
