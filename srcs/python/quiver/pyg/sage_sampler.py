@@ -4,7 +4,6 @@ from torch import Tensor
 from torch_sparse import SparseTensor
 import torch_quiver as qv
 from typing import List, Tuple, NamedTuple, Generic, TypeVar
-
 from dataclasses import dataclass
 import torch.multiprocessing as mp
 import itertools
@@ -57,7 +56,7 @@ class GraphSageSampler:
     def __init__(self,
                  csr_topo: quiver_utils.CSRTopo,
                  sizes: List[int],
-                 exp_name, sb,
+                 exp_name,
                  embedding_cache,
                  # consist of multi-layer 
                  device = 0,
@@ -68,13 +67,16 @@ class GraphSageSampler:
                         "CPU"], f"sampler mode should be one of [UVA, GPU]"
         assert device is _FakeDevice or mode == "CPU" or (device >= 0 and mode != "CPU"), f"Device setting and Mode setting not compatitive"
         
+
         self.sizes = sizes
         self.quiver = None
         self.csr_topo = csr_topo
         self.mode = mode
         self.embedding_cache = embedding_cache
+        self.layers = len(embedding_cache)
         self.exp_name = exp_name
-        self.sb = sb
+        self.sb = 0
+        # manually increase
         # self.cur_batch = 0
         if self.mode in ["GPU", "UVA"] and device is not _FakeDevice and  device >= 0:
             edge_id = torch.zeros(1, dtype=torch.long)
@@ -208,6 +210,16 @@ class GraphSageSampler:
             self.quiver.cal_neighbor_prob(0, last_prob, cur_prob, size)
             last_prob = cur_prob
         return last_prob
+
+    def inc_sb(self):
+        self.sb += 1
+        print("Switch to sb: " + str(self.sb))
+    
+    def fresh_embedding(self):
+        # after each epoch, remove the embeddings
+        for layer in range(self.num_layers):
+            tmp_tag = 'layer_' + str(layer + 1)
+            self.embedding_cache[tmp_tag].reset()
 
     def share_ipc(self):
         """Create ipc handle for multiprocessing

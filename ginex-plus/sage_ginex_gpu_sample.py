@@ -1,3 +1,4 @@
+from cmath import exp
 import os
 import sys
 import json
@@ -11,6 +12,7 @@ import threading
 from datetime import datetime
 import numpy as np
 from lib.cache import NeighborCache, FeatureCache
+from lib.classical_cache import FIFO
 from lib.neighbor_sampler import GinexNeighborSampler
 from lib.data import GinexDataset
 from lib.utils import *
@@ -85,13 +87,13 @@ dataset = GinexDataset(root, args.dataset)
 dataset.prepare_dataset()
 dataset.save_neighbor_cache()
 
-def get_sampler(edge_index):
+def get_sampler(edge_index, embedding_cache):
     if args.use_gpu:
         transfer_start = time.time()
         csr_topo = quiver.CSRTopo(edge_index)
         log.info(f"csr topo cost: {time.time() - transfer_start}s")
         neigh_sampler = quiver.pyg.GraphSageSampler(
-            csr_topo, sizes=sizes, device=args.gpu, mode='UVA')
+            csr_topo, exp_name = args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
         log.info(f"indptr size: {csr_topo.indptr.size()}")
         log.info(f"indptr: {csr_topo.indptr[-5:]}")
         log.info(f"indice: {csr_topo.indices[-5:]}")
@@ -472,6 +474,67 @@ def train_sample_cpu(epoch):
             time: {neighbor_indice_time}")
     return loss, approx_acc
 
+def train_sample_gpu(epoch, gpu_sampler):
+    model.train()
+    neighbor_indice_time = 0
+    dataset.make_new_shuffled_train_idx()
+    num_iter = int((dataset.shuffled_train_idx.numel() +
+                   args.batch_size-1) / args.batch_size)
+
+    pbar = tqdm(total=dataset.train_idx.numel(), position=0, leave=True)
+    pbar.set_description(f'Epoch {epoch:02d}')
+
+    total_loss = total_correct = 0
+    num_sb = int((dataset.train_idx.numel()+args.batch_size *
+                 args.sb_size-1)/(args.batch_size*args.sb_size))
+
+    for i in range(num_sb + 1):
+        if args.verbose:
+            tqdm.write(
+                'Running {}th superbatch of total {} superbatches'.format(i, num_sb))
+        
+        # Superbatch sample
+        if args.verbose:
+            tqdm.write('Step 1: Superbatch Sample')
+        cache, initial_cache_indices, sampler_batch_time = inspect_gpu(
+            i, last=(i == num_sb), gpu_sampler=gpu_sampler, mode='train')
+        torch.cuda.synchronize()
+        if args.verbose:
+            tqdm.write('Step 1: Done')
+
+        if i == 0:
+            continue
+
+        # Switch
+        if args.verbose:
+            tqdm.write('Step 2: Switch')
+        cache = switch(cache, initial_cache_indices)
+        torch.cuda.synchronize()
+        if args.verbose:
+            tqdm.write('Step 2: Done')
+
+        # Main loop
+        if args.verbose:
+            tqdm.write('Step 3: Main Loop')
+        total_loss, total_correct = execute(
+            i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
+        if args.verbose:
+            tqdm.write('Step 3: Done')
+
+        # Delete obsolete runtime files
+        delete_trace(i)
+        neighbor_indice_time += sampler_batch_time
+        # TODO: refine it!
+        gpu_sampler.inc_sb()
+        gpu_sampler.fresh_embedding()
+
+    pbar.close()
+
+    loss = total_loss / num_iter
+    approx_acc = total_correct / dataset.train_idx.numel()
+    log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
+            time: {neighbor_indice_time}")
+    return loss, approx_acc
 
 @torch.no_grad()
 def inference(mode='test'):
@@ -548,28 +611,42 @@ if __name__ == '__main__':
 
     best_val_acc = final_test_acc = 0
 
-    log.info(f"training parameter: {sizes}")
-    for epoch in range(args.num_epochs):
-        if args.verbose:
-            tqdm.write('\n==============================')
-            tqdm.write('Running Epoch {}...'.format(epoch))
+    if len(embedding_rate) != len(sizes) - 1:
+            raise ValueError('Embedding layer excludes the training node and \
+                the bottom feature, expected sizes of length {} but found {}'.format(
+                    len(sizes) - 1, len(embedding_rate)))
+    
+    embedding_cache = {}
+    for i in range(1, len(sizes)):
+        # init the embedding cache
+        # what is the layer_1 ? top down !
+        tmp_tag = 'layer_' + str(i)
+        embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, args.num_hiddens, args.stale_thre, fifo_ratio = embedding_sizes[i - 1])
 
-        start = time.time()
-        loss, acc = train_sample_cpu(epoch)
-        end = time.time()
-        log.info(
-            f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
-        log.info('Epoch time: {:.4f} ms'.format((end - start) * 1000))
+    if args.use_gpu:
+        gpu_sampler = get_sampler(dataset.edge_index, embedding_cache)
+        log.info(f"training parameter: {sizes}")
+        for epoch in range(args.num_epochs):
+            if args.verbose:
+                tqdm.write('\n==============================')
+                tqdm.write('Running Epoch {}...'.format(epoch))
 
-        if epoch > 3 and not args.train_only:
-            val_loss, val_acc = inference(mode='valid')
-            test_loss, test_acc = inference(mode='test')
-            log.info('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
-                val_loss, val_acc, test_loss, test_acc))
+            start = time.time()
+            loss, acc = train_sample_gpu(epoch, gpu_sampler)
+            end = time.time()
+            log.info(
+                f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
+            log.info('Epoch time: {:.4f} ms'.format((end - start) * 1000))
 
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                final_test_acc = test_acc
+            if epoch > 3 and not args.train_only:
+                val_loss, val_acc = inference(mode='valid')
+                test_loss, test_acc = inference(mode='test')
+                log.info('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
+                    val_loss, val_acc, test_loss, test_acc))
 
-    if not args.train_only:
-        log.info(f'Final Test acc: {final_test_acc:.4f}')
+                if val_acc > best_val_acc:
+                    best_val_acc = val_acc
+                    final_test_acc = test_acc
+
+        if not args.train_only:
+            log.info(f'Final Test acc: {final_test_acc:.4f}')
