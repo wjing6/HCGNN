@@ -94,9 +94,9 @@ class TorchQuiver
 
     // deprecated, not compatible with AliGraph
     std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
-    sample_sub(const torch::Tensor &vertices, int k) const
+    sample_sub(const torch::Tensor &vertices, const torch::Tensor &cache_idx, int k) const
     {
-        return sample_sub_with_stream(0, vertices, k);
+        return sample_sub_with_stream(0, vertices, cache_idx, k);
     }
 
     void cal_neighbor_prob(int stream_num, const torch::Tensor last_prob,
@@ -174,7 +174,7 @@ class TorchQuiver
             if (k >= 0) {
                 thrust::transform(policy, output_counts.begin(),
                                   output_counts.end(), output_counts.begin(),
-                                  cap_by_condition<T>(k, static_cast<T>(-1), thrust::raw_pointer_cast(cache_idx.data())));
+                                  cap_by_condition<T>(k, static_cast<T>(-1), thrust::raw_pointer_cast(cache_idx_vec.data())));
             }
             // return '1' if hit in cache
             thrust::exclusive_scan(policy, output_counts.begin(),
