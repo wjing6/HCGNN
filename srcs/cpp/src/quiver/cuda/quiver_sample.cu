@@ -174,7 +174,7 @@ class TorchQuiver
             if (k >= 0) {
                 thrust::transform(policy, output_counts.begin(),
                                   output_counts.end(), output_counts.begin(),
-                                  cap_by_condition<T>(k, static_cast<T>(-1), cache_idx_vec));
+                                  cap_by_condition<T>(k, static_cast<T>(-1), thrust::raw_pointer_cast(cache_idx.data())));
             }
             // return '1' if hit in cache
             thrust::exclusive_scan(policy, output_counts.begin(),
@@ -266,6 +266,7 @@ class TorchQuiver
 
     std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
     sample_sub_with_stream(int stream_num, const torch::Tensor &vertices,
+                           const torch::Tensor &cache_idx,
                            int k) const
     {
         TRACE_SCOPE(__func__);
@@ -276,7 +277,7 @@ class TorchQuiver
         thrust::device_vector<T> outputs;
         thrust::device_vector<T> output_counts;
         thrust::device_vector<T> subset;
-        sample_kernel(stream, vertices, k, inputs, outputs, output_counts);
+        sample_kernel(stream, vertices, cache_idx, k, inputs, outputs, output_counts);
         int tot = outputs.size();
 
         reindex_kernel(stream, inputs, outputs, subset);
