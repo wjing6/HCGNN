@@ -169,12 +169,12 @@ class TorchQuiver
             thrust::copy(p, p + bs, inputs.begin());
             thrust::copy(idx_ptr, idx_ptr + num_nodes, cache_idx_vec.begin());
             // quiver_.to_local(stream, inputs);
-            quiver_.degree(stream, inputs.data(), inputs.data() + inputs.size(),
-                           output_counts.data());
+            quiver_.degree_with_stale(stream, inputs.data(), inputs.data() + inputs.size(),
+                            cache_idx_vec.data(), output_counts.data());
             if (k >= 0) {
                 thrust::transform(policy, output_counts.begin(),
                                   output_counts.end(), output_counts.begin(),
-                                  cap_by_condition<T>(k, static_cast<T>(-1), thrust::raw_pointer_cast(cache_idx_vec.data())));
+                                  cap_by<T>(k));
             }
             // return '1' if hit in cache
             thrust::exclusive_scan(policy, output_counts.begin(),

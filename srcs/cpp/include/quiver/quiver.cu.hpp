@@ -47,6 +47,37 @@ class get_adj_diff
     }
 };
 
+
+template <typename T>
+class get_adj_diff_with_stale
+{
+    const T *x;
+    const T *cache_idx;
+    const T invalid_state;
+    const size_t n;
+    const size_t tot;
+
+  public:
+    get_adj_diff_with_stale(const T *x, const T *cache_idx,
+                            const T invalid_state, const size_t n,
+                            const size_t tot)
+        : x(x),
+          cache_idx(cache_idx),
+          invalid_state(invalid_state),
+          n(n),
+          tot(tot)
+    {
+    }
+
+    __host__ __device__ T operator()(T i) const
+    {
+        if (cache_idx[i] == invalid_state) { return static_cast<T>(1); }
+        const T end = i + 1 < n ? x[i + 1] : tot;
+        return end - x[i];
+    }
+};
+
+
 struct sample_option {
     sample_option(bool w, bool u, bool p)
         : weighted(w), use_id(u), partitioned(p)
@@ -237,39 +268,6 @@ class quiver<T, CUDA>
         return self(row_ptr, col_idx, edge_idx);
     }
 
-    // static self New(T n, thrust::device_vector<T> row_idx,
-    //                 thrust::device_vector<T> col_idx,
-    //                 thrust::device_vector<T> edge_idx,
-    //                 thrust::device_vector<W> edge_weight)
-    // {
-    //     if (!edge_idx.empty()) {
-    //         thrust::device_vector<thrust::tuple<T, T, T, W>> edges(
-    //             row_idx.size());
-    //         zip(row_idx, col_idx, edge_idx, edge_weight, edges);
-    //         thrust::sort(edges.begin(), edges.end());
-    //         unzip(edges, row_idx, col_idx, edge_idx, edge_weight);
-    //     } else {
-    //         thrust::device_vector<thrust::tuple<T, T, W>>
-    //         edges(row_idx.size()); zip(row_idx, col_idx, edge_weight, edges);
-    //         thrust::sort(edges.begin(), edges.end());
-    //         unzip(edges, row_idx, col_idx, edge_weight);
-    //     }
-
-    //     thrust::device_vector<T> row_ptr(n);
-    //     thrust::device_vector<T> row_ptr_next(row_idx.size());
-    //     thrust::device_vector<W> bucket_edge_weight(row_idx.size());
-    //     thrust::sequence(row_ptr.begin(), row_ptr.end());
-    //     thrust::sequence(row_ptr_next.begin(), row_ptr_next.end());
-    //     thrust::lower_bound(row_idx.begin(), row_idx.end(), row_ptr.begin(),
-    //                         row_ptr.end(), row_ptr.begin());
-    //     thrust::upper_bound(row_idx.begin(), row_idx.end(),
-    //                         row_ptr_next.begin(), row_ptr_next.end(),
-    //                         row_ptr_next.begin());
-    //     bucket_weight(row_ptr, row_ptr_next, edge_weight,
-    //     bucket_edge_weight); return self(row_ptr, col_idx, edge_idx,
-    //     edge_weight,
-    //                 bucket_edge_weight);
-    // }
     static self New(T *row_idx, T *col_idx, T *edge_idx, T node_count,
                     T edge_count)
     {
@@ -310,6 +308,30 @@ class quiver<T, CUDA>
                 thrust::cuda::par.on(stream), input_begin, input_end,
                 output_begin,
                 get_adj_diff<T>(row_ptr_mapped_, node_count_, edge_count_));
+        }
+    }
+
+    void degree_with_stale(const cudaStream_t stream,
+                           thrust::device_ptr<const T> input_begin,
+                           thrust::device_ptr<const T> input_end,
+                           thrust::device_ptr<const T> cache_idx,
+                           thrust::device_ptr<T> output_begin) const
+    {
+        if (quiver_mode == DMA) {
+            thrust::transform(thrust::cuda::par.on(stream), input_begin,
+                              input_end, output_begin,
+                              get_adj_diff_with_stale<T>(
+                                  thrust::raw_pointer_cast(row_ptr_.data()),
+                                  thrust::raw_pointer_cast(cache_idx.data()),
+                                  static_cast<T>(-1), row_ptr_.size(),
+                                  col_idx_.size()));
+        } else {
+            thrust::transform(
+                thrust::cuda::par.on(stream), input_begin, input_end,
+                output_begin,
+                get_adj_diff_with_stale<T>(
+                    row_ptr_mapped_, thrust::raw_pointer_cast(cache_idx.data()),
+                    static_cast<T>(-1), node_count_, edge_count_));
         }
     }
 
