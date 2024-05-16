@@ -142,6 +142,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
             size = adj_t.sparse_sizes()[::-1]
             adjs.append(Adj(adj_t, e_id, size))
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1]
+        print (adjs)
         out = (batch_size, n_id, adjs)
         out = self.transform(*out) if self.transform is not None else out
         self.lock.acquire()

@@ -233,9 +233,10 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
         if last:
             cache.pass_3(iterptr, iters, initial_cache_indices)
             torch.cuda.empty_cache()
-            return cache, initial_cache_indices.cpu()
+            return cache, initial_cache_indices.cpu(), 0
         else:
             torch.cuda.empty_cache()
+    sampler_start = time.time()
     start_idx = i * args.batch_size * args.sb_size
     end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
     log.info(f"{train_idx[start_idx:end_idx].shape}")
@@ -246,9 +247,11 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
         gpu_sampler.sample(mini_batch_seeds)
     if i != 0:
         cache.pass_3(iterptr, iters, initial_cache_indices)
-        return cache, initial_cache_indices.cpu()
+        torch.cuda.synchronize()
+        return cache, initial_cache_indices.cpu(), time.time() - sampler_start
     else:
-        return None, None
+        torch.cuda.synchronize()
+        return None, None, 0
 
 def switch(cache, initial_cache_indices):
     cache.fill_cache(initial_cache_indices)
@@ -307,8 +310,9 @@ def delete_trace(i):
 def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     if last:
         if mode == 'train':
-            num_iter = int((dataset.shuffled_train_idx.numel() % (
+            num_iter = int((train_idx.numel() % (
                 args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size)
+            log.info(f"start {num_iter} execute")
         elif mode == 'valid':
             num_iter = int((dataset.val_idx.numel() % (
                 args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size)
@@ -317,7 +321,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size)
     else:
         num_iter = args.sb_size
-
+    
     # Multi-threaded load of sets of (ids, adj, update)
     q = list()
     loader = list()
@@ -345,6 +349,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
             q_value = q[idx % args.trace_load_num_threads].get()
             if q_value:
                 n_id, adjs, (in_indices, in_positions, out_indices) = q_value
+                log.info(f"loading n_id: {n_id.shape} finish")
                 batch_size = adjs[-1].size[1]
                 n_id_q.put(n_id)
                 adjs_q.put(adjs)
@@ -491,14 +496,14 @@ def train_sample_gpu(epoch, gpu_sampler):
     model.train()
     neighbor_indice_time = 0
     dataset.make_new_shuffled_train_idx()
-    num_iter = int((dataset.shuffled_train_idx.numel() +
+    num_iter = int((train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
 
-    pbar = tqdm(total=dataset.train_idx.numel(), position=0, leave=True)
+    pbar = tqdm(total=train_idx.numel(), position=0, leave=True)
     pbar.set_description(f'Epoch {epoch:02d}')
 
     total_loss = total_correct = 0
-    num_sb = int((dataset.train_idx.numel()+args.batch_size *
+    num_sb = int((train_idx.numel()+args.batch_size *
                  args.sb_size-1)/(args.batch_size*args.sb_size))
 
     for i in range(num_sb + 1):
@@ -509,9 +514,8 @@ def train_sample_gpu(epoch, gpu_sampler):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices = inspect_gpu(
+        cache, initial_cache_indices, sampler_batch_time = inspect_gpu(
             i, last=(i == num_sb), gpu_sampler=gpu_sampler, mode='train')
-        torch.cuda.synchronize()
         if args.verbose:
             tqdm.write('Step 1: Done')
 
@@ -529,7 +533,7 @@ def train_sample_gpu(epoch, gpu_sampler):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct = execute(
+        total_loss, total_correct =execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
         if args.verbose:
             tqdm.write('Step 3: Done')

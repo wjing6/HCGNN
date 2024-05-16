@@ -185,13 +185,13 @@ class GraphSageSampler:
             
                 adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
                         is_sorted=True)  
-            
             size = adj_t.sparse_sizes()[::-1]
             e_id = torch.tensor([])
             adjs.append(Adj(adj_t, e_id, size))
             nodes = frontier
         
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1] # reverse
+        print (adjs)
         if frontier.device.type == 'cpu':
             frontier = frontier.to('cpu')
         # TODO: make use of 'transform' in PyG
