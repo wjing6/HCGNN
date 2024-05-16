@@ -173,7 +173,7 @@ class GinexDataset():
     def __init__(self, path, dataset=None, split_idx_path=None, score_path=None):
         self.root_path = path
         self.dataset = dataset
-        self.feature_dim = 256
+        self.feature_dim = 128
         # TODO: make it adjustable!
 
         self.path = os.path.join(path, dataset)

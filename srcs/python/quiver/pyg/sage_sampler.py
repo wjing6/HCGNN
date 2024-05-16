@@ -161,7 +161,7 @@ class GraphSageSampler:
             if layer == 0:
                 out, cnt = self.sample_layer(nodes, size, torch.full([self.embedding_cache['layer_1'].cache_entry_status.shape[0]], -1, dtype=torch.int64, device=self.device))
                 frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
-                if row_idx.device.type == 'cpu':
+                if row_idx.device.type != 'cpu':
                     row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
                 adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
                         is_sorted=True)
@@ -181,7 +181,7 @@ class GraphSageSampler:
                 # edge_index = torch.stack([row_idx, col_idx], dim=0)
 
                 # TODO: more check!
-                if row_idx.device.type == 'cpu':
+                if row_idx.device.type != 'cpu':
                     row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
             
                 adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
@@ -193,7 +193,7 @@ class GraphSageSampler:
         
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1] # reverse
         # print (adjs)
-        if frontier.device.type == 'cpu':
+        if frontier.device.type != 'cpu':
             frontier = frontier.to('cpu')
         # TODO: make use of 'transform' in PyG
         # out = (batch_size, nodes, adjs)
@@ -225,7 +225,7 @@ class GraphSageSampler:
     
     def fresh_embedding(self):
         # after each epoch, remove the embeddings
-        for layer in range(self.num_layers):
+        for layer in range(self.layers):
             tmp_tag = 'layer_' + str(layer + 1)
             self.embedding_cache[tmp_tag].reset()
 

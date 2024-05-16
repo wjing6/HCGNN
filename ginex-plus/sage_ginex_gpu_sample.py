@@ -349,8 +349,9 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
             q_value = q[idx % args.trace_load_num_threads].get()
             if q_value:
                 n_id, adjs, (in_indices, in_positions, out_indices) = q_value
-                log.info(f"loading n_id: {n_id.shape} finish")
+                log.info(f"loading n_id: {n_id.shape} finish, {adjs}, {in_indices.shape}, {in_positions.shape}, {out_indices.shape}")
                 batch_size = adjs[-1].size[1]
+                log.info(f"training batch_size: {batch_size}")
                 n_id_q.put(n_id)
                 adjs_q.put(adjs)
                 in_indices_q.put(in_indices)
@@ -359,8 +360,11 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 out_indices_q.put(out_indices)
 
             # Gather
+            log.info("begin gather")
             batch_inputs, _ = gather_ginex(feature_path, n_id, feature_dim, cache)
+            log.info(f"loading batch input finish, input shape: {batch_inputs.shape}")
             batch_labels = labels[n_id[:batch_size]]
+            log.info(f"loading label finish, labels: {batch_labels}")
 
             # Cache
             cache.update(batch_inputs, in_indices, in_positions, out_indices)
@@ -436,7 +440,6 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 def train_sample_cpu(epoch):
     model.train()
     neighbor_indice_time = 0
-    dataset.make_new_shuffled_train_idx()
     num_iter = int((dataset.shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
 
