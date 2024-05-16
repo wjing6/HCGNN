@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <numeric>
 #include <vector>
-
+#include <iostream>
 #include <thrust/device_vector.h>
 
 #include <pybind11/numpy.h>
@@ -154,7 +154,6 @@ class TorchQuiver
 
         const size_t bs = vertices.size(0);
         const size_t num_nodes = cache_idx.size(0);
-
         {
             TRACE_SCOPE("alloc_1");
             inputs.resize(bs);
@@ -170,7 +169,7 @@ class TorchQuiver
             thrust::copy(idx_ptr, idx_ptr + num_nodes, cache_idx_vec.begin());
             // quiver_.to_local(stream, inputs);
             quiver_.degree_with_stale(stream, inputs.data(), inputs.data() + inputs.size(),
-                            cache_idx_vec.data(), output_counts.data());
+                            thrust::raw_pointer_cast(cache_idx_vec.data()), output_counts.data());
             if (k >= 0) {
                 thrust::transform(policy, output_counts.begin(),
                                   output_counts.end(), output_counts.begin(),
@@ -181,6 +180,7 @@ class TorchQuiver
                                    output_counts.end(), output_ptr.begin());
             tot = thrust::reduce(policy, output_counts.begin(),
                                  output_counts.end());
+	    // std::cout << "after cache, total number is " << tot << std::endl;
         }
         {
             TRACE_SCOPE("alloc_2");

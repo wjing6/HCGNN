@@ -172,9 +172,10 @@ class GraphSageSampler:
                 out, cnt = self.sample_layer(nodes, size, self.embedding_cache[tmp_tag].cache_entry_status)
                 # 这里的 out 和 cnt 都没有经过去重, 需要经过去重后再进行 save
                 # out: the total 'global' nID, cnt: the row ptr
+                # print (f"out shape: {out.shape}, cnt shape: {cnt.shape}")
                 frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
                 # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
-                self.embedding_cache[tmp_tag].evit_and_place_indice(frontier, self.batch_count.item())
+                self.embedding_cache[tmp_tag].evit_and_place_indice(nodes, self.batch_count.item())
                 # reindex still use the out, as we need to put the embedding 'back' to its initial position
                 # row_idx, col_idx = col_idx, row_idx
                 # edge_index = torch.stack([row_idx, col_idx], dim=0)
@@ -191,7 +192,7 @@ class GraphSageSampler:
             nodes = frontier
         
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1] # reverse
-        print (adjs)
+        # print (adjs)
         if frontier.device.type == 'cpu':
             frontier = frontier.to('cpu')
         # TODO: make use of 'transform' in PyG

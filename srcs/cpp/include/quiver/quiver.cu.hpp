@@ -71,7 +71,8 @@ class get_adj_diff_with_stale
 
     __host__ __device__ T operator()(T i) const
     {
-        if (cache_idx[i] == invalid_state) { return static_cast<T>(1); }
+	// hit means not 'invalid_state'
+        if (cache_idx[i] != invalid_state) { return static_cast<T>(1); }
         const T end = i + 1 < n ? x[i + 1] : tot;
         return end - x[i];
     }
@@ -314,7 +315,7 @@ class quiver<T, CUDA>
     void degree_with_stale(const cudaStream_t stream,
                            thrust::device_ptr<const T> input_begin,
                            thrust::device_ptr<const T> input_end,
-                           thrust::device_ptr<const T> cache_idx,
+                           const T *cache_idx,
                            thrust::device_ptr<T> output_begin) const
     {
         if (quiver_mode == DMA) {
@@ -322,7 +323,7 @@ class quiver<T, CUDA>
                               input_end, output_begin,
                               get_adj_diff_with_stale<T>(
                                   thrust::raw_pointer_cast(row_ptr_.data()),
-                                  thrust::raw_pointer_cast(cache_idx.data()),
+                                  cache_idx,
                                   static_cast<T>(-1), row_ptr_.size(),
                                   col_idx_.size()));
         } else {
@@ -330,7 +331,7 @@ class quiver<T, CUDA>
                 thrust::cuda::par.on(stream), input_begin, input_end,
                 output_begin,
                 get_adj_diff_with_stale<T>(
-                    row_ptr_mapped_, thrust::raw_pointer_cast(cache_idx.data()),
+                    row_ptr_mapped_, cache_idx,
                     static_cast<T>(-1), node_count_, edge_count_));
         }
     }
