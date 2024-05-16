@@ -66,19 +66,20 @@ def prepare_topo(root, dataset, edge_index, train_idx, feature_dim, num_classes 
         indices_mmap[:] = indices[:]
         indices_mmap.flush()
         log.info('Done!')
-    
+
+    num_nodes = num_nodes.tolist() # numpy.int64 to 'int'
     log.info('Making conf file...')
     mmap_config = dict()
-    mmap_config['num_nodes'] = num_nodes
+    mmap_config['num_nodes'] = int(num_nodes)
     mmap_config['indptr_shape'] = tuple(indptr.shape)
     mmap_config['indptr_dtype'] = str(indptr.dtype)
     mmap_config['indices_shape'] = tuple(indices.shape)
     mmap_config['indices_dtype'] = str(indices.dtype)
     mmap_config['features_shape'] = tuple([num_nodes, feature_dim])
-    mmap_config['features_dtype'] = str(np.float32)
-    mmap_config['labels_shape'] = tuple(train_idx.shape)
-    mmap_config['labels_dtype'] = str(np.float32)
-    mmap_config['num_classes'] = num_classes
+    mmap_config['features_dtype'] = str(features.dtype)
+    mmap_config['labels_shape'] = tuple(labels_mmap.shape)
+    mmap_config['labels_dtype'] = str(features.dtype)
+    mmap_config['num_classes'] = int(num_classes)
     json.dump(mmap_config, open(conf_path, 'w'))
     log.info('Done!')
 
@@ -110,6 +111,9 @@ def get_edge_index(root, dataset_name, f_dim, exist_binary = True):
         num_nodes = data.num_nodes
         edge_index = data.edge_index
         train_idx = split_idx['train']
+        dataset_path = os.path.join(root, dataset_name)
+        split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
+        torch.save(split_idx, split_idx_path)
     elif dataset_name in ["friendster", "twitter"]:
         dataset_folder = os.path.join(root, dataset_name)
         feature_dim = f_dim
@@ -172,11 +176,16 @@ class GinexDataset():
         self.feature_dim = 256
         # TODO: make it adjustable!
 
-        self.indptr_path = os.path.join(path, 'indptr.dat')
-        self.indices_path = os.path.join(path, 'indices.dat')
-        self.features_path = os.path.join(path, 'features.dat')
-        self.labels_path = os.path.join(path, 'labels.dat')
-        conf_path = os.path.join(path, 'conf.json')
+        self.path = os.path.join(path, dataset)
+        self.indptr_path = os.path.join(self.path, 'indptr.dat')
+        self.indices_path = os.path.join(self.path, 'indices.dat')
+        self.features_path = os.path.join(self.path, 'features.dat')
+        self.labels_path = os.path.join(self.path, 'labels.dat')
+        conf_path = os.path.join(self.path, 'conf.json')
+        score_path = os.path.join(self.path, 'nc_score.pth')
+        if not os.path.exists(conf_path):
+            log.info(f"{conf_path}")            
+            self.prepare_dataset()
         self.conf = json.load(open(conf_path, 'r'))
         
 
@@ -186,8 +195,8 @@ class GinexDataset():
             self.val_idx = split_idx['valid']
             self.test_idx = split_idx['test']
         else:
-            train_idx_path = os.path.join(path, 'train_idx.pth')
-            self.train_idx = torch.load(self.train_idx_path)
+            train_idx_path = os.path.join(self.path, 'train_idx.pth')
+            self.train_idx = torch.load(train_idx_path)
         
         self.score_path = score_path
 
@@ -270,13 +279,13 @@ class GinexDataset():
 
         log.info('Saving neighbor cache...')
         if neigh_cache_size is not None:
-            cache_filename = str(self.root_path) + '/nc_size_' + str(neigh_cache_size)
+            cache_filename = str(self.path) + '/nc_size_' + str(neigh_cache_size)
             neighbor_cache.save(neighbor_cache.cache.numpy(), cache_filename)
-            cache_tbl_filename = str(self.root_path) + '/nctbl_size_' + str(neigh_cache_size)
+            cache_tbl_filename = str(self.path) + '/nctbl_size_' + str(neigh_cache_size)
             neighbor_cache.save(neighbor_cache.address_table.numpy(), cache_tbl_filename)
         else:
-            cache_filename = str(self.root_path) + '/nc_all'
+            cache_filename = str(self.path) + '/nc_all'
             neighbor_cache.save(neighbor_cache.cache.numpy(), cache_filename)
-            cache_tbl_filename = str(self.root_path) + '/nctbl_all'
+            cache_tbl_filename = str(self.path) + '/nctbl_all'
             neighbor_cache.save(neighbor_cache.address_table.numpy(), cache_tbl_filename)
         log.info('Saving neighbor cache done!')

@@ -158,26 +158,33 @@ class GraphSageSampler:
 
         batch_size = len(nodes)
         for layer, size in enumerate(self.sizes):
-            tmp_tag = 'layer_' + str(layer)
-            self.embedding_cache[tmp_tag].check_if_fresh(self.batch_count.item())
+            if layer == 0:
+                out, cnt = self.sample_layer(nodes, size, torch.full([self.embedding_cache['layer_1'].cache_entry_status.shape[0]], -1, dtype=torch.int64, device=self.device))
+                frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+                if row_idx.device.type == 'cpu':
+                    row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
+                adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
+                        is_sorted=True)
+            else:
+                tmp_tag = 'layer_' + str(layer)
+                self.embedding_cache[tmp_tag].check_if_fresh(self.batch_count.item())
 
-            out, cnt = self.sample_layer(nodes, size, self.embedding_cache[tmp_tag])
-            # 这里的 out 和 cnt 都没有经过去重, 需要经过去重后再进行 save
-            # out: the total 'global' nID, cnt: the row ptr
-            frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
-            # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
+                out, cnt = self.sample_layer(nodes, size, self.embedding_cache[tmp_tag].cache_entry_status)
+                # 这里的 out 和 cnt 都没有经过去重, 需要经过去重后再进行 save
+                # out: the total 'global' nID, cnt: the row ptr
+                frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+                # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
+                self.embedding_cache[tmp_tag].evit_and_place_indice(frontier, self.batch_count.item())
+                # reindex still use the out, as we need to put the embedding 'back' to its initial position
+                # row_idx, col_idx = col_idx, row_idx
+                # edge_index = torch.stack([row_idx, col_idx], dim=0)
 
-            self.embedding_cache[tmp_tag].evit_and_place_indice(frontier, self.batch_count.item())
-            # reindex still use the out, as we need to put the embedding 'back' to its initial position
-            row_idx, col_idx = col_idx, row_idx
-            # edge_index = torch.stack([row_idx, col_idx], dim=0)
-
-            # TODO: more check!
-            if row_idx.device.type == 'cpu':
-                row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
+                # TODO: more check!
+                if row_idx.device.type == 'cpu':
+                    row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
             
-            adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),                                      
-                    is_sorted=True)  
+                adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
+                        is_sorted=True)  
             
             size = adj_t.sparse_sizes()[::-1]
             e_id = torch.tensor([])

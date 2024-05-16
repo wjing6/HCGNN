@@ -15,6 +15,7 @@ from lib.cache import NeighborCache, FeatureCache
 from lib.classical_cache import FIFO
 from lib.neighbor_sampler import GinexNeighborSampler
 from lib.data import GinexDataset
+from ogb.nodeproppred import PygNodePropPredDataset
 from lib.utils import *
 import argparse
 from model.sage import SAGE
@@ -78,18 +79,26 @@ args = argparser.parse_args()
 
 root = "/data01/liuyibo/"
 dataset_path = os.path.join(root, args.dataset)
+split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
+
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
 log.info(f"GPU: {str(args.gpu)}, tot available gpu: {torch.cuda.device_count()}")
 
 sizes = [int(size) for size in args.sizes.split(',')]
-dataset = GinexDataset(root, args.dataset)
-dataset.prepare_dataset()
-dataset.save_neighbor_cache()
+dataset = GinexDataset(root, args.dataset, split_idx_path=split_idx_path)
+
+dataset_aux = PygNodePropPredDataset(args.dataset, root)
+data = dataset_aux[0]
+edge_index = data.edge_index
+log.info(f"edge_index: {edge_index.shape}")
+# dataset.prepare_dataset()
+# dataset.save_neighbor_cache()
 
 def get_sampler(edge_index, embedding_cache):
     if args.use_gpu:
         transfer_start = time.time()
+        log.info(f"{edge_index.shape}")
         csr_topo = quiver.CSRTopo(edge_index)
         log.info(f"csr topo cost: {time.time() - transfer_start}s")
         neigh_sampler = quiver.pyg.GraphSageSampler(
@@ -122,8 +131,7 @@ def get_sampler(edge_index, embedding_cache):
 
 embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
 embedding_sizes = [int(rate * dataset.num_nodes) for rate in embedding_rate]
-if args.verbose:
-    tqdm.write('Preparing dataset...')
+
 if args.exp_name is None:
     now = datetime.now()
     args.exp_name = now.strftime('%Y_%m_%d_%H_%M_%S')
@@ -138,13 +146,16 @@ model = SAGE(dataset.feature_dim, args.num_hiddens,
 model = model.to(device)
 
 mmapped_features = dataset.get_mmapped_features()
+log.info("loading feature finish")
 num_nodes = dataset.num_nodes
 feature_dim = dataset.num_features
 feature_path = dataset.features_path
 train_idx = dataset.train_idx
-labels = dataset.get_labels()
-indptr, indices = dataset.get_adj_mat()
 
+labels = dataset.get_labels()
+log.info("loading labels finish")
+indptr, indices = dataset.get_adj_mat()
+log.info("loading indptr and indice finish")
 def inspect_cpu(i, last, mode='train'):
     # with open('/proc/sys/vm/drop_caches', 'w') as stream:
     #     stream.write('1\n')
@@ -212,6 +223,7 @@ def inspect_cpu(i, last, mode='train'):
 
 
 def inspect_gpu(i, last, gpu_sampler, mode='train'):
+    log.info("gpu sampler start")
     if i != 0:
         effective_sb_size = int((train_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
@@ -225,7 +237,8 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
         else:
             torch.cuda.empty_cache()
     start_idx = i * args.batch_size * args.sb_size
-    end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())   
+    end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
+    log.info(f"{train_idx[start_idx:end_idx].shape}")
     train_loader = torch.utils.data.DataLoader(train_idx[start_idx:end_idx],
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
@@ -496,7 +509,7 @@ def train_sample_gpu(epoch, gpu_sampler):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices, sampler_batch_time = inspect_gpu(
+        cache, initial_cache_indices = inspect_gpu(
             i, last=(i == num_sb), gpu_sampler=gpu_sampler, mode='train')
         torch.cuda.synchronize()
         if args.verbose:
@@ -606,6 +619,7 @@ def inference(mode='test'):
 
 
 if __name__ == '__main__':
+    log.info("enter training process")
     model.reset_parameters()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
 
@@ -621,10 +635,11 @@ if __name__ == '__main__':
         # init the embedding cache
         # what is the layer_1 ? top down !
         tmp_tag = 'layer_' + str(i)
-        embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, args.num_hiddens, args.stale_thre, fifo_ratio = embedding_sizes[i - 1])
-
+        embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, args.num_hiddens, args.stale_thre, fifo_ratio = embedding_rate[i - 1], device=device)
+    log.info("Initialize embedding cache finish")
     if args.use_gpu:
-        gpu_sampler = get_sampler(dataset.edge_index, embedding_cache)
+        log.info("initialize gpu sampler..")
+        gpu_sampler = get_sampler(edge_index, embedding_cache)
         log.info(f"training parameter: {sizes}")
         for epoch in range(args.num_epochs):
             if args.verbose:
