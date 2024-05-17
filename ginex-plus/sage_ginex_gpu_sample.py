@@ -403,6 +403,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         adjs = [adj.to(device) for adj in adjs_host]
 
         # Forward
+        n_id = n_id_q.get()
         n_id_cuda = n_id.to(device)
         out = model(batch_inputs_cuda, adjs, n_id_cuda)
         loss = F.nll_loss(out, batch_labels_cuda.long())
@@ -419,7 +420,6 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         total_correct += correct_in_batch
         res = [idx, loss, float(correct_in_batch / batch_labels_cuda.shape[0])]
         
-        n_id = n_id_q.get()
         del (n_id)
         if idx == 0:
             in_indices = in_indices_q.get()
@@ -523,6 +523,8 @@ def train_sample_gpu(epoch, gpu_sampler):
             tqdm.write('Step 1: Done')
 
         if i == 0:
+            gpu_sampler.inc_sb()
+            gpu_sampler.fresh_embedding()
             continue
 
         # Switch
@@ -586,7 +588,7 @@ def inference(mode='test'):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices = inspect_cpu(
+        cache, initial_cache_indices, _ = inspect_cpu(
             i, last=(i == num_sb), mode=mode)
         torch.cuda.synchronize()
         if args.verbose:

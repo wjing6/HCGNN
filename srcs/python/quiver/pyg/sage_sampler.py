@@ -221,6 +221,7 @@ class GraphSageSampler:
 
     def inc_sb(self):
         self.sb += 1
+        self.batch_count = torch.zeros(1, dtype=torch.int).share_memory_()
         print("Switch to sb: " + str(self.sb))
     
     def fresh_embedding(self):
