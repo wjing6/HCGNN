@@ -1,3 +1,6 @@
+'''
+cache simulation tests, testing the hit rate of different datasets with different cache policy
+'''
 import os
 import sys
 import torch

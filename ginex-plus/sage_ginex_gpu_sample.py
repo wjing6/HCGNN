@@ -18,7 +18,7 @@ from lib.data import GinexDataset
 from ogb.nodeproppred import PygNodePropPredDataset
 from lib.utils import *
 import argparse
-from model.sage import SAGE
+from model.sage_with_stale import SAGE
 from queue import Queue
 from random import sample
 from log import log

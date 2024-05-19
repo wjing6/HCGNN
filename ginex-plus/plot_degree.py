@@ -1,3 +1,7 @@
+'''
+plot degree distribution of sampled nodes
+'''
+
 import argparse
 import matplotlib.pyplot as plt
 import json

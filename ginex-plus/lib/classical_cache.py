@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import sys
 from log import log
+# implementation of s3FIFO and FIFO, now use FIFO for embedding cache
 
 class s3FIFO:
     # quick demotion and lazy promotion
