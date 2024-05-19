@@ -41,7 +41,7 @@ batch_for_dataset = {"ogbn-papers100M": 4096,
                      "igb-medium": 4096,
                      "twitter": 4096,
                      "bytedata_caijing": 4096,
-                     "bytedata_part":4096,
+                     "bytedata_part": 4096,
                      "douyin_fengkong_guoqing_0709": 4096,
                      "douyin_fengkong_sucheng_0813": 4096,
                      "caijing_xiaowei_wangzhenchao": 4096,
@@ -53,7 +53,8 @@ argparser.add_argument('--feature-cache-size', type=float, default=500000000)
 argparser.add_argument('--sb-size', type=int, default=1000)
 argparser.add_argument('--prop', type=float, default=0.01)
 argparser.add_argument('--gpu', type=int, default=0)
-argparser.add_argument('--use-gpu', type=bool, default=True) # whether use GPU for sampling
+# whether use GPU for sampling
+argparser.add_argument('--use-gpu', type=bool, default=True)
 argparser.add_argument('--exist-binary', dest='exist_binary',
                        default=False, action='store_true')
 argparser.add_argument('--num-epochs', type=int, default=10)
@@ -69,7 +70,7 @@ argparser.add_argument('--trace-load-num-threads', type=int, default=4)
 argparser.add_argument('--ginex-num-threads', type=int,
                        default=os.cpu_count()*8)
 argparser.add_argument('--neigh-cache-size', type=int, default=6000000000)
-argparser.add_argument('--need-neigh-cache', dest='need_neigh_cache', 
+argparser.add_argument('--need-neigh-cache', dest='need_neigh_cache',
                        default=False, action='store_true')
 argparser.add_argument('--verbose', dest='verbose',
                        default=False, action='store_true')
@@ -80,55 +81,14 @@ args = argparser.parse_args()
 root = "/data01/liuyibo/"
 dataset_path = os.path.join(root, args.dataset)
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
-
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
-log.info(f"GPU: {str(args.gpu)}, tot available gpu: {torch.cuda.device_count()}")
-
+log.info(
+    f"GPU: {str(args.gpu)}, tot available gpu: {torch.cuda.device_count()}")
 sizes = [int(size) for size in args.sizes.split(',')]
 dataset = GinexDataset(root, args.dataset, split_idx_path=split_idx_path)
-
-dataset_aux = PygNodePropPredDataset(args.dataset, root)
-data = dataset_aux[0]
-edge_index = data.edge_index
+edge_index = dataset.edge_index
 log.info(f"edge_index: {edge_index.shape}")
-# dataset.prepare_dataset()
-# dataset.save_neighbor_cache()
-
-def get_sampler(edge_index, embedding_cache):
-    if args.use_gpu:
-        transfer_start = time.time()
-        log.info(f"{edge_index.shape}")
-        csr_topo = quiver.CSRTopo(edge_index)
-        log.info(f"csr topo cost: {time.time() - transfer_start}s")
-        neigh_sampler = quiver.pyg.GraphSageSampler(
-            csr_topo, exp_name = args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
-        log.info(f"indptr size: {csr_topo.indptr.size()}")
-        log.info(f"indptr: {csr_topo.indptr[-5:]}")
-        log.info(f"indice: {csr_topo.indices[-5:]}")
-    else:
-        '''
-        Now use prop for test, so we can set 'cache_size' as 0
-        use '1' for all neighbor placed in CPU
-        '''
-        indptr = dataset.get_rowptr_mt()
-        score = dataset.get_score()
-        num_nodes = dataset.num_nodes
-        neighbor_cache = NeighborCache(0, score, indptr, dataset.indices_path, num_nodes, 1)
-        neigh_sampler = GinexNeighborSampler(indptr, dataset.indices_path, node_idx=dataset.train_idx,
-                                       sizes=sizes, num_nodes = num_nodes,
-                                       cache_data = neighbor_cache.cache, address_table = neighbor_cache.address_table,
-                                       batch_size=batch_for_dataset[args.dataset],
-                                       shuffle=False)
-        #FIXME: 实际上好像也不需要返回 CPU 采样器..
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    return neigh_sampler
-
-
-# feature 随机生成和标签生成; 标签生成随意, 只用来验证性能而非准确率
-# [WIP]
-
-
 embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
 embedding_sizes = [int(rate * dataset.num_nodes) for rate in embedding_rate]
 
@@ -140,22 +100,56 @@ os.makedirs(os.path.join('./trace', args.exp_name), exist_ok=True)
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
 # TODO: use OmegaConf to reduce parameter
-
 model = SAGE(dataset.feature_dim, args.num_hiddens,
-             dataset.num_classes, num_layers=len(sizes), stale_thre=args.stale_thre, num_nodes=dataset.num_nodes, device=device, cache_device=device ,embedding_rate=embedding_rate)
+             dataset.num_classes, num_layers=len(sizes), stale_thre=args.stale_thre, num_nodes=dataset.num_nodes, device=device, cache_device=device, embedding_rate=embedding_rate)
 model = model.to(device)
 
 mmapped_features = dataset.get_mmapped_features()
 log.info("loading feature finish")
 num_nodes = dataset.num_nodes
-feature_dim = dataset.num_features
+feature_dim = dataset.feature_dim
 feature_path = dataset.features_path
 train_idx = dataset.train_idx
 
 labels = dataset.get_labels()
 log.info("loading labels finish")
 indptr, indices = dataset.get_adj_mat()
-log.info("loading indptr and indice finish")
+log.info("loading indptr and indice finish, all prepare finish")
+
+
+def get_sampler(edge_index, embedding_cache):
+    if args.use_gpu:
+        transfer_start = time.time()
+        log.info(f"{edge_index.shape}")
+        csr_topo = quiver.CSRTopo(edge_index)
+        log.info(f"csr topo cost: {time.time() - transfer_start}s")
+        neigh_sampler = quiver.pyg.GraphSageSampler(
+            csr_topo, exp_name=args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
+        log.info(f"indptr size: {csr_topo.indptr.size()}")
+        log.info(f"indptr: {csr_topo.indptr[-5:]}")
+        log.info(f"indice: {csr_topo.indices[-5:]}")
+    else:
+        '''
+        Now use prop for test, so we can set 'cache_size' as 0
+        use '1' for all neighbor placed in CPU
+        '''
+        indptr = dataset.get_rowptr_mt()
+        score = dataset.get_score()
+        num_nodes = dataset.num_nodes
+        neighbor_cache = NeighborCache(
+            0, score, indptr, dataset.indices_path, num_nodes, 1)
+        neigh_sampler = GinexNeighborSampler(indptr, dataset.indices_path, node_idx=dataset.train_idx,
+                                             sizes=sizes, num_nodes=num_nodes,
+                                             cache_data=neighbor_cache.cache, address_table=neighbor_cache.address_table,
+                                             batch_size=batch_for_dataset[args.dataset],
+                                             shuffle=False)
+        # FIXME: 实际上好像也不需要返回 CPU 采样器..
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    return neigh_sampler
+
+
+# feature 随机生成和标签生成; 标签生成随意, 只用来验证性能而非准确率
+# [WIP]
 def inspect_cpu(i, last, mode='train'):
     # with open('/proc/sys/vm/drop_caches', 'w') as stream:
     #     stream.write('1\n')
@@ -201,7 +195,7 @@ def inspect_cpu(i, last, mode='train'):
         neighbor_cachetable_path, neighbor_cachetable_numel)
     start_idx = i * args.batch_size * args.sb_size
     end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
-    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, args.stale_thre ,node_idx=train_idx[start_idx:end_idx],
+    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, args.stale_thre, node_idx=train_idx[start_idx:end_idx],
                                   embedding_size=embedding_rate, sizes=sizes,
                                   cache_data=neighbor_cache, address_table=neighbor_cachetable,
                                   num_nodes=num_nodes,
@@ -215,7 +209,7 @@ def inspect_cpu(i, last, mode='train'):
 
     tensor_free(neighbor_cache)
     tensor_free(neighbor_cachetable)
-    
+
     if i != 0:
         return cache, initial_cache_indices.cpu(), loader.embedding_indice_update_timer
     else:
@@ -241,8 +235,8 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
     end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
     log.info(f"{train_idx[start_idx:end_idx].shape}")
     train_loader = torch.utils.data.DataLoader(train_idx[start_idx:end_idx],
-                                                   batch_size=args.batch_size,
-                                                   shuffle=False)
+                                               batch_size=args.batch_size,
+                                               shuffle=False)
     for _, mini_batch_seeds in enumerate(train_loader):
         gpu_sampler.sample(mini_batch_seeds)
     if i != 0:
@@ -252,6 +246,7 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
     else:
         torch.cuda.synchronize()
         return None, None, 0
+
 
 def switch(cache, initial_cache_indices):
     cache.fill_cache(initial_cache_indices)
@@ -321,11 +316,11 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size)
     else:
         num_iter = args.sb_size
-    
+
     # Multi-threaded load of sets of (ids, adj, update)
     q = list()
     loader = list()
-    
+
     # When execute, need refresh the cache !!
     model.reset_embeddings()
 
@@ -349,7 +344,8 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
             q_value = q[idx % args.trace_load_num_threads].get()
             if q_value:
                 n_id, adjs, (in_indices, in_positions, out_indices) = q_value
-                log.info(f"loading n_id: {n_id.shape} finish, {adjs}, {in_indices.shape}, {in_positions.shape}, {out_indices.shape}")
+                log.info(
+                    f"loading n_id: {n_id.shape} finish, {adjs}, {in_indices.shape}, {in_positions.shape}, {out_indices.shape}")
                 batch_size = adjs[-1].size[1]
                 log.info(f"training batch_size: {batch_size}")
                 n_id_q.put(n_id)
@@ -361,8 +357,10 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 
             # Gather
             log.info("begin gather")
-            batch_inputs, _ = gather_ginex(feature_path, n_id, feature_dim, cache)
-            log.info(f"loading batch input finish, input shape: {batch_inputs.shape}")
+            batch_inputs, _ = gather_ginex(
+                feature_path, n_id, feature_dim, cache)
+            log.info(
+                f"loading batch input finish, input shape: {batch_inputs.shape}")
             batch_labels = labels[n_id[:batch_size]]
             log.info(f"loading label finish, labels: {batch_labels}")
 
@@ -416,10 +414,11 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 
         # Free
         total_loss += float(loss)
-        correct_in_batch = int(out.argmax(dim=-1).eq(batch_labels_cuda.long()).sum())
+        correct_in_batch = int(out.argmax(
+            dim=-1).eq(batch_labels_cuda.long()).sum())
         total_correct += correct_in_batch
         res = [idx, loss, float(correct_in_batch / batch_labels_cuda.shape[0])]
-        
+
         del (n_id)
         if idx == 0:
             in_indices = in_indices_q.get()
@@ -433,7 +432,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         pbar.update(batch_size)
     log.info(f"epoch: {epoch:02d}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
     # not cache pre-epoch embeddings
-    
+
     return total_loss, total_correct
 
 
@@ -454,7 +453,7 @@ def train_sample_cpu(epoch):
         if args.verbose:
             tqdm.write(
                 'Running {}th superbatch of total {} superbatches'.format(i, num_sb))
-        
+
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
@@ -495,6 +494,7 @@ def train_sample_cpu(epoch):
             time: {neighbor_indice_time}")
     return loss, approx_acc
 
+
 def train_sample_gpu(epoch, gpu_sampler):
     model.train()
     neighbor_indice_time = 0
@@ -513,7 +513,7 @@ def train_sample_gpu(epoch, gpu_sampler):
         if args.verbose:
             tqdm.write(
                 'Running {}th superbatch of total {} superbatches'.format(i, num_sb))
-        
+
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
@@ -538,7 +538,7 @@ def train_sample_gpu(epoch, gpu_sampler):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct =execute(
+        total_loss, total_correct = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
         if args.verbose:
             tqdm.write('Step 3: Done')
@@ -557,6 +557,7 @@ def train_sample_gpu(epoch, gpu_sampler):
     log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
     return loss, approx_acc
+
 
 @torch.no_grad()
 def inference(mode='test'):
@@ -635,16 +636,17 @@ if __name__ == '__main__':
     best_val_acc = final_test_acc = 0
 
     if len(embedding_rate) != len(sizes) - 1:
-            raise ValueError('Embedding layer excludes the training node and \
+        raise ValueError('Embedding layer excludes the training node and \
                 the bottom feature, expected sizes of length {} but found {}'.format(
-                    len(sizes) - 1, len(embedding_rate)))
-    
+            len(sizes) - 1, len(embedding_rate)))
+
     embedding_cache = {}
     for i in range(1, len(sizes)):
         # init the embedding cache
         # what is the layer_1 ? top down !
         tmp_tag = 'layer_' + str(i)
-        embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, args.num_hiddens, args.stale_thre, fifo_ratio = embedding_rate[i - 1], device=device)
+        embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, args.num_hiddens,
+                                        args.stale_thre, fifo_ratio=embedding_rate[i - 1], device=device)
     log.info("Initialize embedding cache finish")
     if args.use_gpu:
         log.info("initialize gpu sampler..")
@@ -662,7 +664,7 @@ if __name__ == '__main__':
                 f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
             log.info('Epoch time: {:.4f} ms'.format((end - start) * 1000))
 
-            if epoch > 3 and not args.train_only:
+            if epoch > 3 and not args.train_only and args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
                 val_loss, val_acc = inference(mode='valid')
                 test_loss, test_acc = inference(mode='test')
                 log.info('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
