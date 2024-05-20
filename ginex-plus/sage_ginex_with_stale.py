@@ -9,7 +9,7 @@ from tqdm import tqdm
 import threading
 from queue import Queue
 import pandas as pd
-from model.sage import SAGE
+from model.sage_with_stale import SAGE
 from lib.data import *
 from lib.cache import *
 from lib.utils import *

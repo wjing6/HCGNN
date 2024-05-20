@@ -102,7 +102,7 @@ def prepare_topo(root, dataset, edge_index, train_idx, feature_dim, num_classes 
     return indptr_path, indptr_shape, indices_path, score_path
 
 
-def get_edge_index(root, dataset_name, f_dim, exist_binary = True):
+def get_edge_index(root, dataset_name, f_dim):
     if dataset_name in ["ogbn-products", 'ogbn-papers100M']:
         dataset = PygNodePropPredDataset(dataset_name, root)
         split_idx = dataset.get_idx_split()
@@ -117,7 +117,7 @@ def get_edge_index(root, dataset_name, f_dim, exist_binary = True):
     elif dataset_name in ["friendster", "twitter"]:
         dataset_folder = os.path.join(root, dataset_name)
         feature_dim = f_dim
-        if not exist_binary:
+        if not os.path.exists(dataset_name + ".bin"):
             file_name = dataset_name + ".csv"
             dataset_path = os.path.join(dataset_folder, file_name)
             edge_index, num_nodes = prepare_data_from_scratch.load_edge_list(
@@ -140,7 +140,7 @@ def get_edge_index(root, dataset_name, f_dim, exist_binary = True):
                           "bytedata_part"]:
         feature_dim = f_dim
         dataset_folder = os.path.join(root, dataset_name)
-        if not exist_binary:
+        if not os.path.exists("b.bin"):
             edge_table_folder = os.path.join(dataset_folder, "edge_tables")
             if dataset_name in ["bytedata_caijing"]:
                 edge_index, num_nodes = prepare_data_from_scratch.load_from_part_file(edge_table_folder, True, True)
@@ -173,8 +173,6 @@ class GinexDataset():
     def __init__(self, path, dataset=None, split_idx_path=None, score_path=None):
         self.root_path = path
         self.dataset = dataset
-        self.feature_dim = 128
-        # TODO: make it adjustable!
 
         self.path = os.path.join(path, dataset)
         self.indptr_path = os.path.join(self.path, 'indptr.dat')
@@ -186,6 +184,8 @@ class GinexDataset():
         if not os.path.exists(conf_path):
             log.info(f"{conf_path}")            
             self.prepare_dataset()
+        else:
+            self.edge_index, _, _, _ = get_edge_index(self.root_path, self.dataset, self.feature_dim)
         self.conf = json.load(open(conf_path, 'r'))
         
 
@@ -201,8 +201,8 @@ class GinexDataset():
         self.score_path = score_path
 
         self.num_nodes = self.conf['num_nodes']
-        self.num_features = self.conf['features_shape'][1]
         self.num_classes = self.conf['num_classes']
+        self.feature_dim = self.conf['features_shape'][1]
 
 
     # Return indptr & indices
@@ -243,7 +243,6 @@ class GinexDataset():
 
     def get_mmapped_features(self):
         features_shape = self.conf['features_shape']
-        features_shape[1] = self.num_features
         features = np.memmap(self.features_path, mode='r', shape=tuple(features_shape), dtype=self.conf['features_dtype'])
         features = torch.from_numpy(features)
         return features
@@ -253,7 +252,7 @@ class GinexDataset():
         return torch.load(self.score_path)
 
     def prepare_dataset(self):
-        edge_index, _, feature_dim, train_idx = get_edge_index(self.root_path, self.dataset, self.feature_dim, False)
+        edge_index, _, feature_dim, train_idx = get_edge_index(self.root_path, self.dataset, self.feature_dim)
         self.edge_index = edge_index
         self.train_idx = train_idx
         prepare_topo(self.root_path, self.dataset, edge_index, train_idx, feature_dim)
