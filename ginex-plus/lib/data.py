@@ -184,9 +184,9 @@ class GinexDataset():
         if not os.path.exists(conf_path):
             log.info(f"{conf_path}")            
             self.prepare_dataset()
-        else:
-            self.edge_index, _, _, _ = get_edge_index(self.root_path, self.dataset, self.feature_dim)
         self.conf = json.load(open(conf_path, 'r'))
+        self.feature_dim = self.conf['features_shape'][1]
+        self.edge_index, _, _, _ = get_edge_index(self.root_path, self.dataset, self.feature_dim)
         
 
         if split_idx_path is not None:
@@ -202,7 +202,6 @@ class GinexDataset():
 
         self.num_nodes = self.conf['num_nodes']
         self.num_classes = self.conf['num_classes']
-        self.feature_dim = self.conf['features_shape'][1]
 
 
     # Return indptr & indices

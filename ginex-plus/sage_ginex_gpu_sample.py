@@ -109,8 +109,6 @@ log.info("loading feature finish")
 num_nodes = dataset.num_nodes
 feature_dim = dataset.feature_dim
 feature_path = dataset.features_path
-train_idx = dataset.train_idx
-
 labels = dataset.get_labels()
 log.info("loading labels finish")
 indptr, indices = dataset.get_adj_mat()
@@ -169,7 +167,7 @@ model = model.to(device)
 mmapped_features = dataset.get_mmapped_features()
 log.info("loading feature finish")
 num_nodes = dataset.num_nodes
-feature_dim = dataset.num_features
+feature_dim = dataset.feature_dim
 feature_path = dataset.features_path
 labels = dataset.get_labels()
 log.info("loading labels finish")
@@ -466,6 +464,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 def train_sample_cpu(epoch):
     model.train()
     neighbor_indice_time = 0
+    dataset.make_new_shuffled_train_idx()
     num_iter = int((dataset.shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
 
