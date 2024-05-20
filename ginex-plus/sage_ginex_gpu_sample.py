@@ -115,7 +115,7 @@ def get_sampler(edge_index, embedding_cache):
         score = dataset.get_score()
         num_nodes = dataset.num_nodes
         neighbor_cache = NeighborCache(0, score, indptr, dataset.indices_path, num_nodes, 1)
-        neigh_sampler = GinexNeighborSampler(indptr, dataset.indices_path, node_idx=dataset.train_idx,
+        neigh_sampler = GinexNeighborSampler(indptr, dataset.indices_path, node_idx=dataset.shuffled_train_idx,
                                        sizes=sizes, num_nodes = num_nodes,
                                        cache_data = neighbor_cache.cache, address_table = neighbor_cache.address_table,
                                        batch_size=batch_for_dataset[args.dataset],
@@ -150,8 +150,6 @@ log.info("loading feature finish")
 num_nodes = dataset.num_nodes
 feature_dim = dataset.num_features
 feature_path = dataset.features_path
-train_idx = dataset.train_idx
-
 labels = dataset.get_labels()
 log.info("loading labels finish")
 indptr, indices = dataset.get_adj_mat()
@@ -161,14 +159,14 @@ def inspect_cpu(i, last, mode='train'):
     #     stream.write('1\n')
 
     # TODO: 统一调用方式
-    # if mode == 'train':
-    #     node_idx = dataset.shuffled_train_idx
-    # elif mode == 'valid':
-    #     node_idx = dataset.val_idx
-    # elif mode == 'test':
-    #     node_idx = dataset.test_idx
+    if mode == 'train':
+        node_idx = dataset.shuffled_train_idx
+    elif mode == 'valid':
+        node_idx = dataset.val_idx
+    elif mode == 'test':
+        node_idx = dataset.test_idx
     if i != 0:
-        effective_sb_size = int((train_idx.numel() % (
+        effective_sb_size = int((node_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
         cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes,
                              mmapped_features, feature_dim, args.exp_name, i - 1, args.verbose, False)
@@ -200,8 +198,8 @@ def inspect_cpu(i, last, mode='train'):
     neighbor_cachetable = load_int64(
         neighbor_cachetable_path, neighbor_cachetable_numel)
     start_idx = i * args.batch_size * args.sb_size
-    end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
-    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, args.stale_thre ,node_idx=train_idx[start_idx:end_idx],
+    end_idx = min((i+1) * args.batch_size * args.sb_size, node_idx.numel())
+    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, args.stale_thre, node_idx=node_idx[start_idx:end_idx],
                                   embedding_size=embedding_rate, sizes=sizes,
                                   cache_data=neighbor_cache, address_table=neighbor_cachetable,
                                   num_nodes=num_nodes,
@@ -224,8 +222,9 @@ def inspect_cpu(i, last, mode='train'):
 
 def inspect_gpu(i, last, gpu_sampler, mode='train'):
     log.info("gpu sampler start")
+    shuffled_train_idx = dataset.shuffled_train_idx
     if i != 0:
-        effective_sb_size = int((train_idx.numel() % (
+        effective_sb_size = int((shuffled_train_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
         cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes,
                              mmapped_features, feature_dim, args.exp_name, i - 1, args.verbose, False)
@@ -238,9 +237,9 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
             torch.cuda.empty_cache()
     sampler_start = time.time()
     start_idx = i * args.batch_size * args.sb_size
-    end_idx = min((i+1) * args.batch_size * args.sb_size, train_idx.numel())
-    log.info(f"{train_idx[start_idx:end_idx].shape}")
-    train_loader = torch.utils.data.DataLoader(train_idx[start_idx:end_idx],
+    end_idx = min((i+1) * args.batch_size * args.sb_size, shuffled_train_idx.numel())
+    log.info(f"{shuffled_train_idx[start_idx:end_idx].shape}")
+    train_loader = torch.utils.data.DataLoader(shuffled_train_idx[start_idx:end_idx],
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
     for _, mini_batch_seeds in enumerate(train_loader):
@@ -310,7 +309,7 @@ def delete_trace(i):
 def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     if last:
         if mode == 'train':
-            num_iter = int((train_idx.numel() % (
+            num_iter = int((dataset.shuffled_train_idx.numel() % (
                 args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size)
             log.info(f"start {num_iter} execute")
         elif mode == 'valid':
@@ -443,11 +442,11 @@ def train_sample_cpu(epoch):
     num_iter = int((dataset.shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
 
-    pbar = tqdm(total=dataset.train_idx.numel(), position=0, leave=True)
+    pbar = tqdm(total=dataset.shuffled_train_idx.numel(), position=0, leave=True)
     pbar.set_description(f'Epoch {epoch:02d}')
 
     total_loss = total_correct = 0
-    num_sb = int((dataset.train_idx.numel()+args.batch_size *
+    num_sb = int((dataset.shuffled_train_idx.numel()+args.batch_size *
                  args.sb_size-1)/(args.batch_size*args.sb_size))
 
     for i in range(num_sb + 1):
@@ -490,7 +489,7 @@ def train_sample_cpu(epoch):
     pbar.close()
 
     loss = total_loss / num_iter
-    approx_acc = total_correct / dataset.train_idx.numel()
+    approx_acc = total_correct / dataset.shuffled_train_idx.numel()
     log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
     return loss, approx_acc
@@ -499,14 +498,15 @@ def train_sample_gpu(epoch, gpu_sampler):
     model.train()
     neighbor_indice_time = 0
     dataset.make_new_shuffled_train_idx()
-    num_iter = int((train_idx.numel() +
+    shuffled_train_idx = dataset.shuffled_train_idx
+    num_iter = int((shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
 
-    pbar = tqdm(total=train_idx.numel(), position=0, leave=True)
+    pbar = tqdm(total=dataset.shuffled_train_idx.numel(), position=0, leave=True)
     pbar.set_description(f'Epoch {epoch:02d}')
 
     total_loss = total_correct = 0
-    num_sb = int((train_idx.numel()+args.batch_size *
+    num_sb = int((shuffled_train_idx.numel()+args.batch_size *
                  args.sb_size-1)/(args.batch_size*args.sb_size))
 
     for i in range(num_sb + 1):
@@ -553,7 +553,7 @@ def train_sample_gpu(epoch, gpu_sampler):
     pbar.close()
 
     loss = total_loss / num_iter
-    approx_acc = total_correct / dataset.train_idx.numel()
+    approx_acc = total_correct / shuffled_train_idx.numel()
     log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
     return loss, approx_acc
@@ -672,5 +672,6 @@ if __name__ == '__main__':
                     best_val_acc = val_acc
                     final_test_acc = test_acc
 
+            gpu_sampler.reset_sampler()
         if not args.train_only:
             log.info(f'Final Test acc: {final_test_acc:.4f}')

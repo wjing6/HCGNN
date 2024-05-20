@@ -230,6 +230,11 @@ class GraphSageSampler:
             tmp_tag = 'layer_' + str(layer + 1)
             self.embedding_cache[tmp_tag].reset()
 
+    def reset_sampler(self):
+        self.sb = 0
+        self.batch_count = torch.zeros(1, dtype=torch.int).share_memory_()
+        self.fresh_embedding()
+
     def share_ipc(self):
         """Create ipc handle for multiprocessing
 
