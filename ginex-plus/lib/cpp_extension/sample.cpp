@@ -79,7 +79,7 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
 
     for (int64_t i = 0; i < idx.numel(); i++) {
       n = idx_data[i];
-      if (embedding_table_indice[n] > 0) {
+      if (embedding_table_indice[n] >= 0) {
         // using the historical embedding
         out_rowptr_data[i + 1] = out_rowptr_data[i];
         continue;
@@ -126,7 +126,7 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
   } else if (replace) { // Sample with replacement ===============================
     for (int64_t i = 0; i < idx.numel(); i++) {
       n = idx_data[i];
-      if (embedding_table_indice[n] > 0) {
+      if (embedding_table_indice[n] >= 0) {
         out_rowptr_data[i + 1] = out_rowptr_data[i];
         continue;
       } else {
@@ -173,7 +173,7 @@ sample_adj_ginex(torch::Tensor rowptr, std::string col_file, torch::Tensor idx,
   } else { // Sample without replacement via Robert Floyd algorithm ============
     for (int64_t i = 0; i < idx.numel(); i++) {
       n = idx_data[i];
-      if (embedding_table_indice[n] > 0) {
+      if (embedding_table_indice[n] >= 0) {
         out_rowptr_data[i + 1] = out_rowptr_data[i];
         continue;
       } else {

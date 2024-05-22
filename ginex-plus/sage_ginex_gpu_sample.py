@@ -78,7 +78,7 @@ argparser.add_argument('--train-only', dest='train_only',
                        default=False, action='store_true')
 args = argparser.parse_args()
 
-root = "/data01/liuyibo/"
+root = "/mnt/Ginex/dataset/"
 dataset_path = os.path.join(root, args.dataset)
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
@@ -122,7 +122,7 @@ def get_sampler(edge_index, embedding_cache):
         csr_topo = quiver.CSRTopo(edge_index)
         log.info(f"csr topo cost: {time.time() - transfer_start}s")
         neigh_sampler = quiver.pyg.GraphSageSampler(
-            csr_topo, exp_name=args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
+            csr_topo, num_nodes, exp_name=args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
         log.info(f"indptr size: {csr_topo.indptr.size()}")
         log.info(f"indptr: {csr_topo.indptr[-5:]}")
         log.info(f"indice: {csr_topo.indices[-5:]}")

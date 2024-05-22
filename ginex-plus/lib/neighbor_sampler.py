@@ -11,7 +11,7 @@ from lib.cpp_extension.wrapper import sample
 import time
 
 
-def sample_adj_ginex(rowptr, col, subset, num_neighbors, replace, embedding_table = None, cache_data=None, address_table=None):
+def sample_adj_ginex(rowptr, col, subset, num_neighbors, replace, embedding_table, cache_data=None, address_table=None):
     rowptr, col, n_id, indptr = sample.sample_adj_ginex(                                                   
         rowptr, col, subset, cache_data, address_table, embedding_table, num_neighbors, replace)
                                  
@@ -66,7 +66,7 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
     '''
     def __init__(self, indptr, indices, exp_name, sb,
                  staleness_thre, sizes: List[int], node_idx: Tensor,
-                 embedding_size: List[float],
+                 embedding_size: List[float] = None,
                  cache_data = None, address_table = None,
                  num_nodes: Optional[int] = None,
                  cache_dim: Optional[int] = None,
@@ -85,26 +85,26 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
         self.node_idx = node_idx
         self.num_nodes = num_nodes
         
+        self.embedding_size = embedding_size
         self.cache_data = cache_data
         self.address_table = address_table
 
         self.sizes = sizes
         self.transform = transform
+        if self.embedding_size is not None:
+            if len(embedding_size) != len(sizes) - 1:
+                raise ValueError(
+                    'Embedding layer excludes the training node and the bottom feature,\
+                    expected sizes of length {} but found {}'.format(
+                        len(sizes) - 1, len(embedding_size)))
 
-        self.embedding_indice_update_timer = 0
-        if len(embedding_size) != len(sizes) - 1:
-            raise ValueError(
-                'Embedding layer excludes the training node and the bottom feature,\
-                expected sizes of length {} but found {}'.format(
-                    len(sizes) - 1, len(embedding_size)))
-
-        
-        self.embedding_cache = {}
-        for i in range(1, len(sizes)):
-            # init the embedding cache
-            # what is the layer_1 ? top down !
-            tmp_tag = 'layer_' + str(i)
-            self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, cache_dim, staleness_thre ,fifo_ratio = embedding_size[i - 1])
+            
+            self.embedding_cache = {}
+            for i in range(1, len(sizes)):
+                # init the embedding cache
+                # what is the layer_1 ? top down !
+                tmp_tag = 'layer_' + str(i)
+                self.embedding_cache[tmp_tag] = FIFO(self.num_nodes, tmp_tag, cache_dim, staleness_thre ,fifo_ratio = embedding_size[i - 1])
         
         if node_idx.dtype == torch.bool:
             node_idx = node_idx.nonzero(as_tuple=False).view(-1)
@@ -124,23 +124,31 @@ class GinexNeighborSampler(torch.utils.data.DataLoader):
 
         adjs = []
         n_id = batch
-        for layer, size in enumerate(self.sizes):
-            if layer == 0:
-                adj_t, n_id = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, torch.zeros(self.num_nodes, dtype=torch.int64), self.cache_data, self.address_table)
-            else:
-                # get the embedding cache
-                tmp_tag = 'layer_' + str(layer)
-                self.embedding_cache[tmp_tag].check_if_fresh(self.cur_batch)
-                adj_t, n_id_new = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, self.embedding_cache[tmp_tag].cache_entry_status, self.cache_data, self.address_table)
-                embedding_indice_start = time.time()
-                self.embedding_cache[tmp_tag].evit_and_place_indice(n_id, self.cur_batch)
-                self.embedding_indice_update_timer += time.time() - embedding_indice_start
-                n_id = n_id_new
+        if self.embedding_size is not None:
+            for layer, size in enumerate(self.sizes):
+                if layer == 0:
+                    adj_t, n_id = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, torch.full([self.num_nodes], -1, dtype=torch.int64), self.cache_data, self.address_table)
+                else:
+                    # get the embedding cache
+                    tmp_tag = 'layer_' + str(layer)
+                    self.embedding_cache[tmp_tag].check_if_fresh(self.cur_batch)
+                    adj_t, n_id_new = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, self.embedding_cache[tmp_tag].cache_entry_status, self.cache_data, self.address_table)
+                    self.embedding_cache[tmp_tag].evit_and_place_indice(n_id, self.cur_batch)
+                    n_id = n_id_new
 
-            # the return n_id excludes the node in embedding!
-            e_id = adj_t.storage.value()
-            size = adj_t.sparse_sizes()[::-1]
-            adjs.append(Adj(adj_t, e_id, size))
+                # the return n_id excludes the node in embedding!
+                e_id = adj_t.storage.value()
+                size = adj_t.sparse_sizes()[::-1]
+                adjs.append(Adj(adj_t, e_id, size))
+        else:
+            for layer, size in enumerate(self.sizes):
+                adj_t, n_id = sample_adj_ginex(self.indptr, self.indices, n_id, size, False, torch.full(
+                    [self.num_nodes], -1, dtype=torch.int64), self.cache_data, self.address_table)
+                # the return n_id excludes the node in embedding!
+                e_id = adj_t.storage.value()
+                size = adj_t.sparse_sizes()[::-1]
+                adjs.append(Adj(adj_t, e_id, size))
+    
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1]
         out = (batch_size, n_id, adjs)
         out = self.transform(*out) if self.transform is not None else out

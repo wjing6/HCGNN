@@ -55,9 +55,10 @@ class GraphSageSampler:
     """
     def __init__(self,
                  csr_topo: quiver_utils.CSRTopo,
+                 num_nodes,
                  sizes: List[int],
                  exp_name,
-                 embedding_cache,
+                 embedding_cache = None,
                  # consist of multi-layer 
                  device = 0,
                  mode="UVA"):
@@ -72,8 +73,10 @@ class GraphSageSampler:
         self.quiver = None
         self.csr_topo = csr_topo
         self.mode = mode
+        self.num_nodes = num_nodes
         self.embedding_cache = embedding_cache
-        self.layers = len(embedding_cache)
+        if embedding_cache is not None:
+            self.layers = len(embedding_cache)
         self.exp_name = exp_name
         self.sb = 0
         # manually increase
@@ -94,7 +97,7 @@ class GraphSageSampler:
         self.batch_count = torch.zeros(1, dtype=torch.int).share_memory_()
         self.lock = mp.Lock()
 
-    def sample_layer(self, batch, size, embedding_cache):
+    def sample_layer(self, batch, size, embedding_cache=None):
         # sample need to exclude the stale embedding, then re-include it when passing to topper-layer
         self.lazy_init_quiver()
         if not isinstance(batch, torch.Tensor):
@@ -103,10 +106,17 @@ class GraphSageSampler:
         batch_size: int = len(batch)
         n_id = batch.to(self.device)
         size = size if size != -1 else self.csr_topo.node_count
-        if self.mode in ["GPU", "UVA"]:
-            n_id, count = self.quiver.sample_neighbor(0, n_id, embedding_cache, size)
+        if embedding_cache is not None:
+            if self.mode in ["GPU", "UVA"]:
+                n_id, count = self.quiver.sample_neighbor(0, n_id, embedding_cache, size)
+            else:
+                n_id, count = self.quiver.sample_neighbor(n_id, size)
         else:
-            n_id, count = self.quiver.sample_neighbor(n_id, size)
+            if self.mode in ["GPU", "UVA"]:
+                n_id, count = self.quiver.sample_neighbor(0, n_id, torch.full(
+                    [self.num_nodes], -1, dtype=torch.int64, device=self.device), size)
+            else:
+                n_id, count = self.quiver.sample_neighbor(n_id, size)
         
         return n_id, count
 
@@ -157,39 +167,52 @@ class GraphSageSampler:
         adjs = []
 
         batch_size = len(nodes)
-        for layer, size in enumerate(self.sizes):
-            if layer == 0:
-                out, cnt = self.sample_layer(nodes, size, torch.full([self.embedding_cache['layer_1'].cache_entry_status.shape[0]], -1, dtype=torch.int64, device=self.device))
+        if self.embedding_cache is not None:
+            for layer, size in enumerate(self.sizes):
+                if layer == 0:
+                    out, cnt = self.sample_layer(nodes, size, torch.full([self.embedding_cache['layer_1'].cache_entry_status.shape[0]], -1, dtype=torch.int64, device=self.device))
+                    frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+                    if row_idx.device.type != 'cpu':
+                        row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
+                    adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
+                            is_sorted=True)
+                else:
+                    tmp_tag = 'layer_' + str(layer)
+                    self.embedding_cache[tmp_tag].check_if_fresh(self.batch_count.item())
+
+                    out, cnt = self.sample_layer(nodes, size, self.embedding_cache[tmp_tag].cache_entry_status)
+                    # 这里的 out 和 cnt 都没有经过去重, 需要经过去重后再进行 save
+                    # out: the total 'global' nID, cnt: the row ptr
+                    # print (f"out shape: {out.shape}, cnt shape: {cnt.shape}")
+                    frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+                    # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
+                    self.embedding_cache[tmp_tag].evit_and_place_indice(nodes, self.batch_count.item())
+                    # reindex still use the out, as we need to put the embedding 'back' to its initial position
+                    # row_idx, col_idx = col_idx, row_idx
+                    # edge_index = torch.stack([row_idx, col_idx], dim=0)
+
+                    # TODO: more check!
+                    if row_idx.device.type != 'cpu':
+                        row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
+            
+                    adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
+                            is_sorted=True)  
+                size = adj_t.sparse_sizes()[::-1]
+                e_id = torch.tensor([])
+                adjs.append(Adj(adj_t, e_id, size))
+                nodes = frontier
+        else:
+            for layer, size in enumerate(self.sizes):
+                out, cnt = self.sample_layer(nodes, size)
                 frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
                 if row_idx.device.type != 'cpu':
                     row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
                 adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
                         is_sorted=True)
-            else:
-                tmp_tag = 'layer_' + str(layer)
-                self.embedding_cache[tmp_tag].check_if_fresh(self.batch_count.item())
-
-                out, cnt = self.sample_layer(nodes, size, self.embedding_cache[tmp_tag].cache_entry_status)
-                # 这里的 out 和 cnt 都没有经过去重, 需要经过去重后再进行 save
-                # out: the total 'global' nID, cnt: the row ptr
-                # print (f"out shape: {out.shape}, cnt shape: {cnt.shape}")
-                frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
-                # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
-                self.embedding_cache[tmp_tag].evit_and_place_indice(nodes, self.batch_count.item())
-                # reindex still use the out, as we need to put the embedding 'back' to its initial position
-                # row_idx, col_idx = col_idx, row_idx
-                # edge_index = torch.stack([row_idx, col_idx], dim=0)
-
-                # TODO: more check!
-                if row_idx.device.type != 'cpu':
-                    row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
-            
-                adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
-                        is_sorted=True)  
-            size = adj_t.sparse_sizes()[::-1]
-            e_id = torch.tensor([])
-            adjs.append(Adj(adj_t, e_id, size))
-            nodes = frontier
+                size = adj_t.sparse_sizes()[::-1]
+                e_id = torch.tensor([])
+                adjs.append(Adj(adj_t, e_id, size))
+                nodes = frontier
         
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1] # reverse
         # print (adjs)
