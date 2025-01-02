@@ -86,19 +86,22 @@ class FIFO:
         self.fifo_ratio = fifo_ratio
         self.device = device
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
-        self.cache_size = int(fifo_ratio * cache_entries)
-        self.cache_idx = torch.zeros(self.cache_size, dtype=torch.int64, device=self.device) 
-        # the cached idx
-        self.only_indice = only_indice
-        self.staleness_thre = staleness_thre
+        self.hit_num = 0
+        self.total_place_num = 0
+        if self.fifo_ratio > 0:
+            self.cache_size = int(fifo_ratio * cache_entries)
+            self.cache_idx = torch.zeros(self.cache_size, dtype=torch.int64, device=self.device) 
+            # the cached idx
+            self.only_indice = only_indice
+            self.staleness_thre = staleness_thre
 
-        self.head = 0
-        self.cur_len = 0
-        if not only_indice:
-            self.cache_data = torch.zeros(
-                self.cache_size, feature_dim, dtype=torch.float32, device=self.device)
-        log.info("In {tag}, the cache entry number is {:d}".format(
-            self.cache_size, tag=self.tag))
+            self.head = 0
+            self.cur_len = 0
+            if not only_indice:
+                self.cache_data = torch.zeros(
+                    self.cache_size, feature_dim, dtype=torch.float32, device=self.device)
+            log.info("In {tag}, the cache entry number is {:d}".format(
+                self.cache_size, tag=self.tag))
     
     def get_hit(self, target_nodes):
         if (target_nodes.device != self.device):
@@ -113,6 +116,8 @@ class FIFO:
             self.reset()
 
     def evit_and_place_indice(self, target_nodes, global_batch):
+        if self.fifo_ratio == 0:
+            return
         # only used for sampling, not included the updating of feature!
         if global_batch % self.staleness_thre == 0:
             self.reset()
@@ -120,6 +125,8 @@ class FIFO:
         target_nodes_status = self.cache_entry_status[target_nodes]
         cache_no_hit = target_nodes_status == -1
         no_hit_nodes = target_nodes[cache_no_hit]
+        self.hit_num += target_nodes.shape[0] - no_hit_nodes.shape[0]
+        self.total_place_num += target_nodes.shape[0]
         pop_num = no_hit_nodes.shape[0] + self.cur_len - self.cache_size
         push_num = no_hit_nodes.shape[0]
         tail = (self.head + self.cur_len) % (self.cache_size)
@@ -165,6 +172,8 @@ class FIFO:
         # 这里因为不涉及真实结果的获取, 因此无需保留真实位置
 
     def evit_and_place(self, target_nodes, target_feature, global_batch):
+        if self.fifo_ratio == 0:
+            return
         # batch evit and update!
         if self.only_indice:
             log.error(

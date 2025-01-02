@@ -1,14 +1,10 @@
-import csv
-import pandas as pd
-import torch
+from scipy.sparse import csr_matrix
 import numpy as np
-a = torch.tensor([1, 2, 5, 8])
-data = torch.tensor([5, 2, 7, 6])
-idx = torch.tensor([0, 2])
-res = torch.tensor([2, 8])
-feature = torch.rand([10, 5])
-print (feature)
-push_feature = torch.rand([2, 5])
-print (push_feature)
-feature[idx] = push_feature
-print (feature)
+def get_csr_from_coo(src, dst):
+    node_count = max(np.max(src), np.max(dst))
+    data = np.zeros(dst.shape, dtype=np.int32)
+    csr_mat = csr_matrix(
+        (data, (src, dst)))
+    return csr_mat
+
+print (get_csr_from_coo(np.array([1,2,3]), np.array([0,1,2])))

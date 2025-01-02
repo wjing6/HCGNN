@@ -70,7 +70,7 @@ std::tuple<torch::Tensor, intT> load_edge_list(const std::string &file_path,
 
         if (tmp_str[0] != skip) {
             std::stringstream ss(tmp_str);
-            if (!(ss >> src >> delimiter >> dst)) {
+            if (!(ss >> src >> dst)) {
                 log_error("Cannot convert line %lu to edge.", line_count);
                 exit(-1);
             }

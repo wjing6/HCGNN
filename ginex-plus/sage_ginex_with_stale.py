@@ -54,10 +54,11 @@ if args.exp_name is None:
     args.exp_name = now.strftime('%Y_%m_%d_%H_%M_%S')
 os.makedirs(os.path.join('./trace', args.exp_name), exist_ok=True)
 sizes = [int(size) for size in args.sizes.split(',')]
-dataset = GinexDataset(path=dataset_path, split_idx_path=split_idx_path)
+dataset = GinexDataset(path=dataset_path, dataset=args.dataset, split_idx_path=split_idx_path)
+dataset.save_neighbor_cache(args.neigh_cache_size)
 num_nodes = dataset.num_nodes
 print(num_nodes)
-num_features = dataset.num_features
+num_features = dataset.feature_dim
 features = dataset.features_path
 num_classes = dataset.num_classes
 embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
@@ -148,7 +149,7 @@ def inspect(i, last, mode='train'):
     tensor_free(neighbor_cachetable)
     
     if i != 0:
-        return cache, initial_cache_indices.cpu(), loader.embedding_indice_update_timer
+        return cache, initial_cache_indices.cpu(), 0
     else:
         return None, None, 0
 

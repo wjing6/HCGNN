@@ -60,6 +60,7 @@ argparser.add_argument('--exist-binary', dest='exist_binary',
 argparser.add_argument('--num-epochs', type=int, default=10)
 argparser.add_argument('--batch-size', type=int, default=1000)
 argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
+argparser.add_argument('--stale-thre', type=int, default=5) # 实际未使用
 argparser.add_argument('--feature-dim', type=int, default=256)
 argparser.add_argument('--num-hiddens', type=int, default=256)
 argparser.add_argument('--exp-name', type=str, default=None)
@@ -119,7 +120,7 @@ def get_sampler(edge_index):
         csr_topo = quiver.CSRTopo(edge_index)
         log.info(f"csr topo cost: {time.time() - transfer_start}s")
         neigh_sampler = quiver.pyg.GraphSageSampler(
-            csr_topo, num_nodes, exp_name=args.exp_name, sizes=sizes, device=args.gpu, mode='UVA')
+            csr_topo, dataset.num_nodes, exp_name=args.exp_name, sizes=sizes, device=args.gpu, mode='UVA')
         log.info(f"indptr size: {csr_topo.indptr.size()}")
         log.info(f"indptr: {csr_topo.indptr[-5:]}")
         log.info(f"indice: {csr_topo.indices[-5:]}")
@@ -392,7 +393,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         # Forward
         n_id = n_id_q.get()
         n_id_cuda = n_id.to(device)
-        out = model(batch_inputs_cuda, adjs, n_id_cuda)
+        out = model(batch_inputs_cuda, adjs)
         loss = F.nll_loss(out, batch_labels_cuda.long())
 
         # Backward
@@ -586,6 +587,6 @@ if __name__ == '__main__':
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
                     final_test_acc = test_acc
-
+            gpu_sampler.reset_sampler()
         if not args.train_only:
             log.info(f'Final Test acc: {final_test_acc:.4f}')

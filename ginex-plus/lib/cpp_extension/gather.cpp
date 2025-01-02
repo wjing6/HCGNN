@@ -119,10 +119,10 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
 
     int64_t num_idx = idx.numel();
 
-    // float *read_buffer = (float *)aligned_alloc(
-    //     ALIGNMENT, ALIGNMENT * 2 * atoi(getenv("GINEX_NUM_THREADS")));
-    float *read_buffer =
-        (float *)aligned_alloc(ALIGNMENT, ALIGNMENT * 2 * num_idx);
+    float *read_buffer = (float *)aligned_alloc(
+        ALIGNMENT, ALIGNMENT * 2 * atoi(getenv("GINEX_NUM_THREADS")));
+    // float *read_buffer =
+    //     (float *)aligned_alloc(ALIGNMENT, ALIGNMENT * 2 * num_idx);
     float *result_buffer =
         (float *)aligned_alloc(ALIGNMENT, feature_size * num_idx);
 
@@ -133,6 +133,7 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
     readTimer.reset();
     int64_t not_in_cache = 0;
     // stage 1: dispatch read requests
+/*
 #pragma omp parallel for num_threads(atoi(getenv("GINEX_NUM_THREADS")))        \
     // shared(not_in_cache)
     for (int64_t n = 0; n < num_idx; n++) {
@@ -167,7 +168,7 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
         }
     }
     auto floating = readTimer.elapsed_and_reset() / 1000.0;
-
+*/
     // std::cout << "prepare read cost " << floating << " s" << std::endl;
     // stage 2: collect the data and copy
 #pragma omp parallel for num_threads(atoi(getenv("GINEX_NUM_THREADS")))
@@ -177,6 +178,7 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
         int64_t aligned_offset;
         int64_t residual;
         int64_t cache_entry;
+        int64_t read_size;
 
         i = idx_data[n];
         cache_entry = cache_table_data[i];
@@ -187,13 +189,23 @@ gather_ginex(std::string feature_file, torch::Tensor idx, int64_t feature_dim,
             offset = i * feature_size;
             aligned_offset = offset & (long)~(ALIGNMENT - 1);
             residual = offset - aligned_offset;
+            if (residual+feature_size > ALIGNMENT){
+                read_size = ALIGNMENT * 2;
+            }
+            else {
+                read_size = ALIGNMENT;
+            }
+
+            if (pread(feature_fd, read_buffer+(ALIGNMENT*2*omp_get_thread_num())/sizeof(float), read_size, aligned_offset) == -1){
+                fprintf(stderr, "ERROR: %s\n", strerror(errno));
+            }
             memcpy(result_buffer + feature_dim * n,
-                   read_buffer + (ALIGNMENT * 2 * n + residual) / sizeof(float),
+                   read_buffer + (ALIGNMENT * 2 * omp_get_thread_num() + residual) / sizeof(float),
                    feature_size);
         }
     }
 
-    floating = readTimer.elapsed_and_reset() / 1000.0;
+    // floating = readTimer.elapsed_and_reset() / 1000.0;
     // std::cout << "memcpy copy cost " << floating << " s" << std::endl;
     auto options = torch::TensorOptions()
                        .dtype(torch::kFloat32)
@@ -248,7 +260,7 @@ gather_ginex_async(std::string feature_file, torch::Tensor idx,
 
     readTimer.reset();
 
-#pragma omp parallel for num_threads(128)
+#pragma omp parallel for num_threads(atoi(getenv("GINEX_NUM_THREADS")))
     for (int64_t n = 0; n < num_idx; n++) {
         int64_t i = idx_data[n];
         int64_t cache_entry = cache_table_data[i];
@@ -283,7 +295,7 @@ gather_ginex_async(std::string feature_file, torch::Tensor idx,
     struct iocb *io_req = new iocb[not_in_cache];
     memset(io_req, 0, sizeof(iocb) * not_in_cache);
 
-#pragma omp parallel for num_threads(128)
+#pragma omp parallel for num_threads(atoi(getenv("GINEX_NUM_THREADS")))
     for (int64_t n = 0; n < num_idx; n++) {
         int64_t i;
         int64_t offset;
@@ -344,7 +356,7 @@ gather_ginex_async(std::string feature_file, torch::Tensor idx,
     }
     auto floating = readTimer.elapsed_and_reset() / 1000.0;
     printf("transfer cost %.2f s\n", floating);
-#pragma omp parallel for num_threads(128)
+#pragma omp parallel for num_threads(atoi(getenv("GINEX_NUM_THREADS")))
     for (int64_t n = 0; n < num_idx; n++) {
         int64_t i;
         int64_t offset;

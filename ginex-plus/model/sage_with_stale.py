@@ -34,10 +34,12 @@ class SAGE(torch.nn.Module):
         self.convs.append(SAGEConv(hidden_channels, out_channels))
         
         self.cur_batch = 0
+        self.stage = 0 # training stage
         # timer
         self.index_select_time = 0
         self.evit_time = 0
         self.cache_transfer_time = 0
+        
 
 
     def reset_parameters(self):
@@ -84,6 +86,9 @@ class SAGE(torch.nn.Module):
         if full_embeddings.device != self.cache_device:
             full_embeddings = full_embeddings.to(self.cache_device)
             x_target = x_target.to(self.cache_device)
+        if self.stage == 1:
+            # inference stage
+            return None, None
         layer_tag = 'layer_' + str(layer)
         pull_nodes_idx, pull_embeddings, push_nodes_idx, push_nodes = self.embedding_cache[layer_tag].get_hit_nodes(x_target, self.cur_batch)
         # pull_node_idx 对应 x_target 中的idx
@@ -110,6 +115,10 @@ class SAGE(torch.nn.Module):
         self.index_select_time = 0
         self.cache_transfer_time = 0
         self.cur_batch = 0
+
+    def change_stage(self, stage = 1):
+        # train -> inference
+        self.stage = stage
         
     def inference(self, x_all):
         pbar = tqdm(total=x_all.size(0) * self.num_layers)

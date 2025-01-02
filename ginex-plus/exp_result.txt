@@ -1,0 +1,2049 @@
+
+==============================
+Running Epoch 0...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 1...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 2...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 3...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 4...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 5...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 6...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 7...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 8...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 9...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 0...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 1...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 2...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 3...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 4...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 5...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 6...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 7...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 8...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 9...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 0...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 1...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 2...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 3...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 4...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 5...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 6...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 7...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 8...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 9...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 0th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 1 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+
+==============================
+Running Epoch 0...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 1...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 2...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 3...
+Running 0th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Step 1: Done
+Switch to sb: 1
+Running 1th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 2
+Running 2th superbatch of total 2 superbatches
+Step 1: Superbatch Sample
+Loading ids...
+Pass 1 and 2, Done!
+Pass 1: calculating frequency and initial cache indices...
+Done!
+Pass 2: making two key data structures (iterptr & iters)...
+Done!
+Pass 3: Computing changesets...
+Done!
+Step 1: Done
+Step 2: Switch
+Step 2: Done
+Step 3: Main Loop
+Step 3: Done
+Switch to sb: 3
+
+==============================
+Running Epoch 4...

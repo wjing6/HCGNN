@@ -4,11 +4,10 @@ import tqdm
 from torch_geometric.nn import SAGEConv, GCNConv
 
 class SAGE(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, subgraph_loader, device = 'cuda'):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers, device = 'cuda'):
         super(SAGE, self).__init__()
 
         self.num_layers = num_layers
-        self.subgraph_loader = subgraph_loader
         self.device = device
 
         self.convs = torch.nn.ModuleList()

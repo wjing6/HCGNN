@@ -1,4 +1,3 @@
-from cmath import exp
 import os
 import sys
 import json
@@ -15,12 +14,10 @@ from lib.cache import NeighborCache, FeatureCache
 from lib.classical_cache import FIFO
 from lib.neighbor_sampler import GinexNeighborSampler
 from lib.data import GinexDataset
-from ogb.nodeproppred import PygNodePropPredDataset
 from lib.utils import *
 import argparse
 from model.sage_with_stale import SAGE
 from queue import Queue
-from random import sample
 from log import log
 sys.path.append("../")
 UNITS = {
@@ -59,7 +56,7 @@ argparser.add_argument('--exist-binary', dest='exist_binary',
                        default=False, action='store_true')
 argparser.add_argument('--num-epochs', type=int, default=10)
 argparser.add_argument('--batch-size', type=int, default=1000)
-argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
+argparser.add_argument('--num-workers', type=int, default=os.cpu_count())
 argparser.add_argument('--stale-thre', type=int, default=5)
 argparser.add_argument('--feature-dim', type=int, default=256)
 argparser.add_argument('--num-hiddens', type=int, default=256)
@@ -79,18 +76,24 @@ argparser.add_argument('--train-only', dest='train_only',
 args = argparser.parse_args()
 
 root = "/mnt/Ginex/dataset/"
-dataset_path = os.path.join(root, args.dataset)
+dataset_path = os.path.join(root, args.dataset + '-ginex')
+
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 os.environ['GINEX_NUM_THREADS'] = str(args.ginex_num_threads)
 log.info(
     f"GPU: {str(args.gpu)}, tot available gpu: {torch.cuda.device_count()}")
 sizes = [int(size) for size in args.sizes.split(',')]
-dataset = GinexDataset(root, args.dataset, split_idx_path=split_idx_path)
+dataset = GinexDataset(dataset_path, args.dataset, split_idx_path=split_idx_path)
+
+if not args.use_gpu:
+    dataset.save_neighbor_cache(args.neigh_cache_size)
+
 edge_index = dataset.edge_index
 log.info(f"edge_index: {edge_index.shape}")
 embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
 embedding_sizes = [int(rate * dataset.num_nodes) for rate in embedding_rate]
+
 
 if args.exp_name is None:
     now = datetime.now()
@@ -115,6 +118,13 @@ indptr, indices = dataset.get_adj_mat()
 log.info("loading indptr and indice finish, all prepare finish")
 
 
+def get_csr(edge_index):
+    transfer_start = time.time()
+    log.info(f"{edge_index.shape}")
+    csr_topo = quiver.CSRTopo(edge_index)
+    log.info(f"csr topo cost: {time.time() - transfer_start}s")
+    return csr_topo
+
 def get_sampler(edge_index, embedding_cache):
     if args.use_gpu:
         transfer_start = time.time()
@@ -122,7 +132,7 @@ def get_sampler(edge_index, embedding_cache):
         csr_topo = quiver.CSRTopo(edge_index)
         log.info(f"csr topo cost: {time.time() - transfer_start}s")
         neigh_sampler = quiver.pyg.GraphSageSampler(
-            csr_topo, num_nodes, exp_name=args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
+            csr_topo, dataset.num_nodes, exp_name=args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
         log.info(f"indptr size: {csr_topo.indptr.size()}")
         log.info(f"indptr: {csr_topo.indptr[-5:]}")
         log.info(f"indice: {csr_topo.indices[-5:]}")
@@ -138,7 +148,7 @@ def get_sampler(edge_index, embedding_cache):
         neigh_sampler = GinexNeighborSampler(indptr, dataset.indices_path, node_idx=dataset.shuffled_train_idx,
                                        sizes=sizes, num_nodes = num_nodes,
                                        cache_data = neighbor_cache.cache, address_table = neighbor_cache.address_table,
-                                       batch_size=batch_for_dataset[args.dataset],
+                                       batch_size=args.batch_size,
                                        shuffle=False)
         #FIXME: 实际上好像也不需要返回 CPU 采样器..
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -203,15 +213,15 @@ def inspect_cpu(i, last, mode='train'):
         else:
             torch.cuda.empty_cache()
 
-    neighbor_cache_path = str(dataset_path) + '/nc_all.dat'
+    neighbor_cache_path = str(dataset_path) + '/nc_size_' + str(args.neigh_cache_size) + '.dat'
     neighbor_cache_conf_path = str(
-        dataset_path) + '/nc_all' + '_conf.json'
+        dataset_path) + '/nc_size_' +  str(args.neigh_cache_size) + '_conf.json'
     neighbor_cache_numel = json.load(
         open(neighbor_cache_conf_path, 'r'))['shape'][0]
     neighbor_cachetable_path = str(
-        dataset_path) + '/nctbl_all' + '.dat'
+        dataset_path) + '/nctbl_size_' + str(args.neigh_cache_size) + '.dat'
     neighbor_cachetable_conf_path = str(
-        dataset_path) + '/nctbl_all' + '_conf.json'
+        dataset_path) + '/nctbl_size_' + str(args.neigh_cache_size) + '_conf.json'
     neighbor_cachetable_numel = json.load(
         open(neighbor_cachetable_conf_path, 'r'))['shape'][0]
     neighbor_cache = load_int64(neighbor_cache_path, neighbor_cache_numel)
@@ -242,7 +252,13 @@ def inspect_cpu(i, last, mode='train'):
 
 def inspect_gpu(i, last, gpu_sampler, mode='train'):
     log.info("gpu sampler start")
-    shuffled_train_idx = dataset.shuffled_train_idx
+    if mode == 'train':
+        shuffled_train_idx = dataset.shuffled_train_idx
+    elif mode == 'valid':
+        shuffled_train_idx = dataset.val_idx
+    elif mode == 'test':
+        shuffled_train_idx = dataset.test_idx
+
     if i != 0:
         effective_sb_size = int((shuffled_train_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
@@ -264,6 +280,11 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
                                                    shuffle=False)
     for _, mini_batch_seeds in enumerate(train_loader):
         gpu_sampler.sample(mini_batch_seeds)
+
+    if gpu_sampler.embedding_cache is not None: # training stage
+        for layer, fifo_cache in gpu_sampler.embedding_cache.items():
+            log.info(f"Layer: {layer}, hit number: {fifo_cache.hit_num}, \
+                    total place: {fifo_cache.total_place_num}, hit ratio: {(fifo_cache.hit_num / fifo_cache.total_place_num):.4f}")
     if i != 0:
         cache.pass_3(iterptr, iters, initial_cache_indices)
         torch.cuda.synchronize()
@@ -362,6 +383,8 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     out_indices_q = Queue(maxsize=2)
     gather_q = Queue(maxsize=1)
 
+    training_time = 0
+
     for idx in range(num_iter):
         batch_size = args.batch_size
         if idx == 0:
@@ -387,7 +410,6 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
             log.info(
                 f"loading batch input finish, input shape: {batch_inputs.shape}")
             batch_labels = labels[n_id[:batch_size]]
-            log.info(f"loading label finish, labels: {batch_labels}")
 
             # Cache
             cache.update(batch_inputs, in_indices, in_positions, out_indices)
@@ -419,6 +441,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 gather_q, n_id, cache, batch_size), daemon=True)
             gather_loader.start()
 
+        start = time.time()
         # Transfer
         batch_inputs_cuda = batch_inputs.to(device)
         batch_labels_cuda = batch_labels.to(device)
@@ -430,12 +453,13 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         n_id_cuda = n_id.to(device)
         out = model(batch_inputs_cuda, adjs, n_id_cuda)
         loss = F.nll_loss(out, batch_labels_cuda.long())
-
         # Backward
         if mode == 'train':
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+        training_time += time.time() - start
 
         # Free
         total_loss += float(loss)
@@ -458,7 +482,7 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
     log.info(f"epoch: {epoch:02d}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}")
     # not cache pre-epoch embeddings
 
-    return total_loss, total_correct
+    return total_loss, total_correct, training_time
 
 
 def train_sample_cpu(epoch):
@@ -503,7 +527,7 @@ def train_sample_cpu(epoch):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct = execute(
+        total_loss, total_correct, _ = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
         if args.verbose:
             tqdm.write('Step 3: Done')
@@ -524,6 +548,9 @@ def train_sample_cpu(epoch):
 def train_sample_gpu(epoch, gpu_sampler):
     model.train()
     neighbor_indice_time = 0
+    gather_and_train_time = 0
+    training_time = 0
+
     dataset.make_new_shuffled_train_idx()
     shuffled_train_idx = dataset.shuffled_train_idx
     num_iter = int((shuffled_train_idx.numel() +
@@ -565,8 +592,11 @@ def train_sample_gpu(epoch, gpu_sampler):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct = execute(
+        start = time.time()
+        total_loss, total_correct, train_time = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
+        gather_and_train_time += time.time() - start
+        training_time += train_time
         if args.verbose:
             tqdm.write('Step 3: Done')
 
@@ -583,8 +613,82 @@ def train_sample_gpu(epoch, gpu_sampler):
     approx_acc = total_correct / shuffled_train_idx.numel()
     log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
             time: {neighbor_indice_time}")
-    return loss, approx_acc
+    return loss, approx_acc, gather_and_train_time, training_time
 
+
+@torch.no_grad()
+def inference_gpu_sample(gpu_sampler, mode='test'):
+    model.eval()
+
+    if mode == 'test':
+        pbar = tqdm(total=dataset.test_idx.numel(), position=0, leave=True)
+        num_sb = int((dataset.test_idx.numel()+args.batch_size *
+                     args.sb_size-1)/(args.batch_size*args.sb_size))
+        num_iter = int((dataset.test_idx.numel() +
+                       args.batch_size-1) / args.batch_size)
+    elif mode == 'valid':
+        pbar = tqdm(total=dataset.val_idx.numel(), position=0, leave=True)
+        num_sb = int((dataset.val_idx.numel()+args.batch_size *
+                     args.sb_size-1)/(args.batch_size*args.sb_size))
+        num_iter = int(
+            (dataset.val_idx.numel()+args.batch_size-1) / args.batch_size)
+
+    pbar.set_description('Evaluating')
+
+    model.change_stage(1)
+
+    total_loss = total_correct = 0
+    for i in range(num_sb + 1):
+        if args.verbose:
+
+            tqdm.write(
+                'Running {}th superbatch of total {} superbatches'.format(i, num_sb))
+
+        # Superbatch sample
+        if args.verbose:
+            tqdm.write('Step 1: Superbatch Sample')
+        cache, initial_cache_indices, _ = inspect_gpu(
+            i, last=(i == num_sb), gpu_sampler=gpu_sampler, mode=mode)
+        torch.cuda.synchronize()
+        if args.verbose:
+            tqdm.write('Step 1: Done')
+
+        if i == 0:
+            gpu_sampler.inc_sb()
+            continue
+
+        # Switch
+        if args.verbose:
+            tqdm.write('Step 2: Switch')
+        cache = switch(cache, initial_cache_indices)
+        torch.cuda.synchronize()
+        if args.verbose:
+            tqdm.write('Step 2: Done')
+
+        # Main loop
+        if args.verbose:
+            tqdm.write('Step 3: Main Loop')
+        total_loss, total_correct, _ = execute(
+            i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode=mode)
+        if args.verbose:
+            tqdm.write('Step 3: Done')
+
+        # Delete obsolete runtime files
+        delete_trace(i)
+        gpu_sampler.inc_sb()
+
+    pbar.close()
+
+    loss = total_loss / num_iter
+    if mode == 'test':
+        approx_acc = total_correct / dataset.test_idx.numel()
+    elif mode == 'valid':
+        approx_acc = total_correct / dataset.val_idx.numel()
+    
+    model.change_stage(0) # 恢复训练状态
+    gpu_sampler.reset_sampler()
+
+    return loss, approx_acc
 
 @torch.no_grad()
 def inference(mode='test'):
@@ -636,7 +740,7 @@ def inference(mode='test'):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct = execute(
+        total_loss, total_correct, _ = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode=mode)
         if args.verbose:
             tqdm.write('Step 3: Done')
@@ -675,9 +779,13 @@ if __name__ == '__main__':
         embedding_cache[tmp_tag] = FIFO(num_nodes, tmp_tag, args.num_hiddens,
                                         args.stale_thre, fifo_ratio=embedding_rate[i - 1], device=device)
     log.info("Initialize embedding cache finish")
+
+    avg_time = 0 #记录平均训练时间
+
     if args.use_gpu:
         log.info("initialize gpu sampler..")
         gpu_sampler = get_sampler(edge_index, embedding_cache)
+        inference_gpu_sampler = get_sampler(edge_index, None) # inference 不使用嵌入缓存
         log.info(f"training parameter: {sizes}")
         for epoch in range(args.num_epochs):
             if args.verbose:
@@ -685,22 +793,32 @@ if __name__ == '__main__':
                 tqdm.write('Running Epoch {}...'.format(epoch))
 
             start = time.time()
-            loss, acc = train_sample_gpu(epoch, gpu_sampler)
+            loss, acc, gather_and_train_time, training_time = train_sample_gpu(epoch, gpu_sampler)
             end = time.time()
             log.info(
                 f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
-            log.info('Epoch time: {:.4f} ms'.format((end - start) * 1000))
+            log.info('Epoch time: {:.4f} ms, Train time: {:.4f} ms, Gather time: {:.4f} ms'.format((end - start) * 1000, training_time * 1000,
+                                                                                                (gather_and_train_time - training_time) * 1000))
+            avg_time = avg_time+(end-start)*1000
 
             if epoch > 3 and not args.train_only and args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
-                val_loss, val_acc = inference(mode='valid')
-                test_loss, test_acc = inference(mode='test')
+
+                val_loss, val_acc = inference_gpu_sample(inference_gpu_sampler, mode='valid')
+                test_loss, test_acc = inference_gpu_sample(inference_gpu_sampler, mode='test')
                 log.info('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
                     val_loss, val_acc, test_loss, test_acc))
 
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
                     final_test_acc = test_acc
-
             gpu_sampler.reset_sampler()
+        avg_time = avg_time / args.num_epochs
         if not args.train_only:
             log.info(f'Final Test acc: {final_test_acc:.4f}')
+            log.info(f'Average training time is {avg_time:.4f}')
+
+            with open('./result.txt','a') as file:
+                file.write(f'stale threshold: {args.stale_thre}, embedding size: {args.embedding_sizes} .\n')
+                file.write(f'Final Test acc: {final_test_acc:.4f}.\n')
+                file.write(f'Average training time is {avg_time:.4f}')
+
