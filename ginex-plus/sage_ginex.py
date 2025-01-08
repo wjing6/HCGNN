@@ -59,7 +59,7 @@ argparser.add_argument('--exist-binary', dest='exist_binary',
                        default=False, action='store_true')
 argparser.add_argument('--num-epochs', type=int, default=10)
 argparser.add_argument('--batch-size', type=int, default=1000)
-argparser.add_argument('--num-workers', type=int, default=os.cpu_count()*2)
+argparser.add_argument('--num-workers', type=int, default=os.cpu_count())
 argparser.add_argument('--stale-thre', type=int, default=5) # 实际未使用
 argparser.add_argument('--feature-dim', type=int, default=256)
 argparser.add_argument('--num-hiddens', type=int, default=256)

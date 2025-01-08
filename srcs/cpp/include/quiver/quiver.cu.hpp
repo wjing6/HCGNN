@@ -72,7 +72,7 @@ class get_adj_diff_with_stale
     __host__ __device__ T operator()(T i) const
     {
 	// hit means not 'invalid_state'
-        if (cache_idx[i] != invalid_state) { return static_cast<T>(1); }
+        if (cache_idx[i] != invalid_state) { return static_cast<T>(0); }
         const T end = i + 1 < n ? x[i + 1] : tot;
         return end - x[i];
     }

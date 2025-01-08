@@ -31,11 +31,8 @@ __global__ void CSRRowWiseSampleKernel(
         const int64_t out_row_start = out_ptr[out_row];
 
         if (cache_idx[row] != static_cast<T>(-1)) {
-            // hit in cache
-            if (threadIdx.x == 0) {
-                out[out_row_start] = row;
-            }
-            __syncwarp();
+            // hit in cache, 不做任何处理
+            // 后面根据缓存状态装载即可
         } else {
             if (deg <= num_picks) {
                 // just copy row

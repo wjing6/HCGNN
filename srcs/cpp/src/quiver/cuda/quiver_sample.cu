@@ -149,6 +149,8 @@ class TorchQuiver
         thrust::device_vector<T> output_idx;
         thrust::device_vector<T> cache_idx_vec;
 
+        // thrust::device_vector<T> test_output;
+
         const T *p = vertices.data_ptr<T>();
         const T *idx_ptr = cache_idx.data_ptr<T>();
 
@@ -160,6 +162,8 @@ class TorchQuiver
             output_counts.resize(bs);
             output_ptr.resize(bs);
             cache_idx_vec.resize(num_nodes);
+
+            // test_output.resize(bs);
         }
         // output_ptr is exclusive prefix sum of output_counts(neighbor counts
         // <= k)
@@ -170,17 +174,22 @@ class TorchQuiver
             // quiver_.to_local(stream, inputs);
             quiver_.degree_with_stale(stream, inputs.data(), inputs.data() + inputs.size(),
                             thrust::raw_pointer_cast(cache_idx_vec.data()), output_counts.data());
+            // quiver_.degree(stream, inputs.data(), inputs.data() + inputs.size(), test_output.data());
             if (k >= 0) {
                 thrust::transform(policy, output_counts.begin(),
                                   output_counts.end(), output_counts.begin(),
                                   cap_by<T>(k));
+                // thrust::transform(policy, test_output.begin(),
+                //                   test_output.end(), test_output.begin(),
+                //                   cap_by<T>(k));
             }
-            // return '1' if hit in cache
             thrust::exclusive_scan(policy, output_counts.begin(),
                                    output_counts.end(), output_ptr.begin());
             tot = thrust::reduce(policy, output_counts.begin(),
                                  output_counts.end());
-	    // std::cout << "after cache, total number is " << tot << std::endl;
+            // T test_tot = thrust::reduce(policy, test_output.begin(),
+            //                      test_output.end());
+	        // std::cout << "before cache, number is " << test_tot<< " ;after cache, total number is " << tot << std::endl;
         }
         {
             TRACE_SCOPE("alloc_2");
@@ -196,7 +205,7 @@ class TorchQuiver
         // }
         {
             TRACE_SCOPE("sample");
-            quiver_.new_sample(
+            quiver_.new_sample( 
                 stream, k, thrust::raw_pointer_cast(inputs.data()),
                 thrust::raw_pointer_cast(cache_idx_vec.data()),
                 inputs.size(), thrust::raw_pointer_cast(output_ptr.data()),
@@ -207,15 +216,12 @@ class TorchQuiver
         torch::Tensor out_neighbor;
         torch::Tensor out_eid;
 
-        // thrust::copy(outputs.begin(), outputs.end(),
-        //              out_neighbor.data_ptr<T>());
-        // thrust::copy(output_eid.begin(), output_eid.end(),
-        //              out_eid.data_ptr<T>());
+
         return std::make_tuple(out_neighbor, out_eid);
     }
 
     static void reindex_kernel(const cudaStream_t stream,
-                               thrust::device_vector<T> &inputs,
+                               thrust::device_vector<T> &inputs, 
                                thrust::device_vector<T> &outputs,
                                thrust::device_vector<T> &subset)
     {

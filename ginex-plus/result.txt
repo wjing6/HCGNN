@@ -44,4 +44,68 @@ Average training time is 357988.5530stale threshold: 10, embedding size: 0.001,0
 Final Test acc: 0.6083.
 Average training time is 365155.7832stale threshold: 10, embedding size: 0.005,0.01 .
 Final Test acc: 0.6106.
-Average training time is 352043.4266
+Average training time is 352043.4266stale threshold: 10, embedding size: 0.001,0.005 .
+Final Test acc: 0.6091.
+Average training time is 411315.8970stale threshold: 10, embedding size: 0.001,0.01 .
+Final Test acc: 0.6114.
+Average training time is 412452.2874stale threshold: 10, embedding size: 0.005,0.05 .
+Final Test acc: 0.6080.
+Average training time is 411447.3000stale threshold: 20, embedding size: 0.001,0.005 .
+Final Test acc: 0.6046.
+Average training time is 393643.7989stale threshold: 20, embedding size: 0.001,0.01 .
+Final Test acc: 0.6074.
+Average training time is 397235.1419stale threshold: 20, embedding size: 0.005,0.05 .
+Final Test acc: 0.6046.
+Average training time is 396927.7382stale threshold: 5, embedding size: 0.0001,0.0005 .
+Final Test acc: 0.4586.
+Average training time is 199179.6743stale threshold: 5, embedding size: 0.005,0.05 .
+Final Test acc: 0.7719.
+Average training time is 34694.3904stale threshold: 5, embedding size: 0.005,0.1 .
+Final Test acc: 0.7812.
+Average training time is 37906.0199stale threshold: 5, embedding size: 0.01,0.05 .
+Final Test acc: 0.7781.
+Average training time is 32888.3170stale threshold: 5, embedding size: 0.01,0.1 .
+Final Test acc: 0.7807.
+Average training time is 38772.7133stale threshold: 5, embedding size: 0.01,0.2 .
+Final Test acc: 0.7815.
+Average training time is 34420.1282stale threshold: 5, embedding size: 0.025,0.1 .
+Final Test acc: 0.7832.
+Average training time is 38244.9381stale threshold: 10, embedding size: 0.025,0.1 .
+Final Test acc: 0.7735.
+Average training time is 35259.6963stale threshold: 10, embedding size: 0.05,0.5 .
+Final Test acc: 0.7832.
+Average training time is 40127.0210stale threshold: 10, embedding size: 0.01,0.2 .
+Final Test acc: 0.7838.
+Average training time is 40947.3304stale threshold: 10, embedding size: 0.01,0.1 .
+Final Test acc: 0.7709.
+Average training time is 36820.5963stale threshold: 10, embedding size: 0.01,0.05 .
+Final Test acc: 0.7745.
+Average training time is 37315.1744stale threshold: 10, embedding size: 0.00045,0.0018 .
+Final Test acc: 0.4657.
+Average training time is 255744.6667stale threshold: 10, embedding size: 0.00045,0.0018 .
+Final Test acc: 0.4652.
+Average training time is 229059.4039stale threshold: 10, embedding size: 0.02,0.08 .
+Final Test acc: 0.7721.
+Average training time is 31155.0298stale threshold: 5, embedding size: 0.002,0.02 .
+Final Test acc: 0.4652.
+Average training time is 199780.1601stale threshold: 10, embedding size: 0.002,0.02 .
+Final Test acc: 0.4615.
+Average training time is 199931.4569stale threshold: 15, embedding size: 0.002,0.02 .
+Final Test acc: 0.4612.
+Average training time is 199988.3830stale threshold: 20, embedding size: 0.002,0.02 .
+Final Test acc: 0.4592.
+Average training time is 198441.9613stale threshold: 25, embedding size: 0.002,0.02 .
+Final Test acc: 0.4617.
+Average training time is 195292.3867stale threshold: 5, embedding size: 0.082,0.82 .
+Final Test acc: 0.7845.
+Average training time is 34265.7404stale threshold: 10, embedding size: 0.082,0.82 .
+Final Test acc: 0.7840.
+Average training time is 22148.3018stale threshold: 20, embedding size: 0.082,0.82 .
+Final Test acc: 0.7842.
+Average training time is 26791.3704stale threshold: 15, embedding size: 0.082,0.82 .
+Final Test acc: 0.7848.
+Average training time is 21794.4598stale threshold: 25, embedding size: 0.082,0.82 .
+Final Test acc: 0.7860.
+Average training time is 22291.5779stale threshold: 1000, embedding size: 0.0045,0.045 .
+Final Test acc: 0.6903.
+Average training time is 21395.6867

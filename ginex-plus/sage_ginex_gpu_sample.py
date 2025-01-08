@@ -19,6 +19,7 @@ import argparse
 from model.sage_with_stale import SAGE
 from queue import Queue
 from log import log
+import csv
 sys.path.append("../")
 UNITS = {
     #
@@ -31,18 +32,9 @@ UNITS = {
     "G": 2**30,
 }
 
+losses = []
+cur_time = []
 
-batch_for_dataset = {"ogbn-papers100M": 4096,
-                     "ogbn-products": 1024,
-                     "friendster": 4096,
-                     "igb-medium": 4096,
-                     "twitter": 4096,
-                     "bytedata_caijing": 4096,
-                     "bytedata_part": 4096,
-                     "douyin_fengkong_guoqing_0709": 4096,
-                     "douyin_fengkong_sucheng_0813": 4096,
-                     "caijing_xiaowei_wangzhenchao": 4096,
-                     }
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
@@ -73,10 +65,25 @@ argparser.add_argument('--verbose', dest='verbose',
                        default=False, action='store_true')
 argparser.add_argument('--train-only', dest='train_only',
                        default=False, action='store_true')
-args = argparser.parse_args()
-
+args, remaining_args = argparser.parse_known_args()
 root = "/mnt/Ginex/dataset/"
 dataset_path = os.path.join(root, args.dataset + '-ginex')
+
+if args.dataset in ['igb-medium', 'igb-large']:
+    argparser.add_argument('--path', type=str, default=dataset_path,
+                           help='path containing the datasets')
+    argparser.add_argument('--dataset_size', type=str, default='medium',
+                           choices=['tiny', 'small',
+                                    'medium', 'large', 'full'],
+                           help='size of the datasets')
+    argparser.add_argument('--num_classes', type=int, default=19,
+                           choices=[19, 2983], help='number of classes')
+    argparser.add_argument('--in_memory', type=int, default=0,
+                           choices=[0, 1], help='0:read only mmap_mode=r, 1:load into memory')
+    argparser.add_argument('--synthetic', type=int, default=0,
+                           choices=[0, 1], help='0:nlp-node embeddings, 1:random')
+
+args = argparser.parse_args()
 
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
@@ -86,19 +93,21 @@ log.info(
 sizes = [int(size) for size in args.sizes.split(',')]
 dataset = GinexDataset(dataset_path, args.dataset, split_idx_path=split_idx_path)
 
+start_time = time.time()
+
 if not args.use_gpu:
     dataset.save_neighbor_cache(args.neigh_cache_size)
 
-edge_index = dataset.edge_index
-log.info(f"edge_index: {edge_index.shape}")
+# edge_index = dataset.edge_index
+# log.info(f"edge_index: {edge_index.shape}")
 embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
 embedding_sizes = [int(rate * dataset.num_nodes) for rate in embedding_rate]
-
+trace_path = './trace'
 
 if args.exp_name is None:
     now = datetime.now()
     args.exp_name = now.strftime('%Y_%m_%d_%H_%M_%S')
-os.makedirs(os.path.join('./trace', args.exp_name), exist_ok=True)
+os.makedirs(os.path.join(trace_path, args.exp_name), exist_ok=True)
 
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
@@ -120,19 +129,18 @@ log.info("loading indptr and indice finish, all prepare finish")
 
 def get_csr(edge_index):
     transfer_start = time.time()
-    log.info(f"{edge_index.shape}")
-    csr_topo = quiver.CSRTopo(edge_index)
+    csr_topo = quiver.CSRTopo(indices=indices, indptr=indptr)
     log.info(f"csr topo cost: {time.time() - transfer_start}s")
     return csr_topo
 
-def get_sampler(edge_index, embedding_cache):
+def get_sampler(indptr, indices, embedding_cache):
     if args.use_gpu:
         transfer_start = time.time()
-        log.info(f"{edge_index.shape}")
-        csr_topo = quiver.CSRTopo(edge_index)
+        csr_topo = quiver.CSRTopo(indices=indices, indptr=indptr)
         log.info(f"csr topo cost: {time.time() - transfer_start}s")
         neigh_sampler = quiver.pyg.GraphSageSampler(
-            csr_topo, dataset.num_nodes, exp_name=args.exp_name, sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
+            csr_topo, dataset.num_nodes, exp_name=args.exp_name, trace_path=trace_path,
+                sizes=sizes, embedding_cache=embedding_cache, device=args.gpu, mode='UVA')
         log.info(f"indptr size: {csr_topo.indptr.size()}")
         log.info(f"indptr: {csr_topo.indptr[-5:]}")
         log.info(f"indice: {csr_topo.indices[-5:]}")
@@ -155,35 +163,6 @@ def get_sampler(edge_index, embedding_cache):
     return neigh_sampler
 
 
-# feature 随机生成和标签生成; 标签生成随意, 只用来验证性能而非准确率
-# [WIP]
-
-embedding_rate = [float(size) for size in args.embedding_sizes.split(',')]
-embedding_sizes = [int(rate * dataset.num_nodes) for rate in embedding_rate]
-
-if args.exp_name is None:
-    now = datetime.now()
-    args.exp_name = now.strftime('%Y_%m_%d_%H_%M_%S')
-os.makedirs(os.path.join('./trace', args.exp_name), exist_ok=True)
-
-device = torch.device('cuda:%d' % args.gpu)
-torch.cuda.set_device(device)
-# TODO: use OmegaConf to reduce parameter
-
-model = SAGE(dataset.feature_dim, args.num_hiddens,
-             dataset.num_classes, num_layers=len(sizes), stale_thre=args.stale_thre, num_nodes=dataset.num_nodes, device=device, cache_device=device ,embedding_rate=embedding_rate)
-model = model.to(device)
-
-mmapped_features = dataset.get_mmapped_features()
-log.info("loading feature finish")
-num_nodes = dataset.num_nodes
-feature_dim = dataset.feature_dim
-feature_path = dataset.features_path
-labels = dataset.get_labels()
-log.info("loading labels finish")
-indptr, indices = dataset.get_adj_mat()
-log.info("loading indptr and indice finish")
-
 def inspect_cpu(i, last, mode='train'):
     # with open('/proc/sys/vm/drop_caches', 'w') as stream:
     #     stream.write('1\n')
@@ -199,7 +178,7 @@ def inspect_cpu(i, last, mode='train'):
         effective_sb_size = int((node_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
         cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes,
-                             mmapped_features, feature_dim, args.exp_name, i - 1, args.verbose, False)
+                             mmapped_features, feature_dim, args.exp_name, trace_path, i - 1, args.verbose, False)
         # Pass 1 and 2 are executed before starting sb sample.
         # We overlap only the pass 3 of changeset precomputation,
         # which is the most time consuming part, with sb sample.
@@ -251,7 +230,6 @@ def inspect_cpu(i, last, mode='train'):
 
 
 def inspect_gpu(i, last, gpu_sampler, mode='train'):
-    log.info("gpu sampler start")
     if mode == 'train':
         shuffled_train_idx = dataset.shuffled_train_idx
     elif mode == 'valid':
@@ -259,39 +237,46 @@ def inspect_gpu(i, last, gpu_sampler, mode='train'):
     elif mode == 'test':
         shuffled_train_idx = dataset.test_idx
 
+
+    sampler_start = time.time()
+
     if i != 0:
         effective_sb_size = int((shuffled_train_idx.numel() % (
             args.sb_size*args.batch_size) + args.batch_size-1) / args.batch_size) if last else args.sb_size
         cache = FeatureCache(args.feature_cache_size, effective_sb_size, num_nodes,
-                             mmapped_features, feature_dim, args.exp_name, i - 1, args.verbose, False)
+                             mmapped_features, feature_dim, args.exp_name, trace_path, i - 1, args.verbose, False)
         iterptr, iters, initial_cache_indices = cache.pass_1_and_2()
         if last:
             cache.pass_3(iterptr, iters, initial_cache_indices)
             torch.cuda.empty_cache()
-            return cache, initial_cache_indices.cpu(), 0
+            log.info(f"superbatch {i}, hit num: {cache.hit_num}, total place: {cache.total_place}\
+                     , hit ratio: {cache.hit_num / cache.total_place:.4f}")
+            return cache, initial_cache_indices.cpu(), time.time() - sampler_start, 0
         else:
             torch.cuda.empty_cache()
-    sampler_start = time.time()
     start_idx = i * args.batch_size * args.sb_size
     end_idx = min((i+1) * args.batch_size * args.sb_size, shuffled_train_idx.numel())
-    log.info(f"{shuffled_train_idx[start_idx:end_idx].shape}")
     train_loader = torch.utils.data.DataLoader(shuffled_train_idx[start_idx:end_idx],
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
+    start = time.time()
     for _, mini_batch_seeds in enumerate(train_loader):
         gpu_sampler.sample(mini_batch_seeds)
-
+    sample_time = time.time() - start
     if gpu_sampler.embedding_cache is not None: # training stage
         for layer, fifo_cache in gpu_sampler.embedding_cache.items():
-            log.info(f"Layer: {layer}, hit number: {fifo_cache.hit_num}, \
+            if (fifo_cache.total_place_num > 0):
+                log.info(f"Layer: {layer}, hit number: {fifo_cache.hit_num}, \
                     total place: {fifo_cache.total_place_num}, hit ratio: {(fifo_cache.hit_num / fifo_cache.total_place_num):.4f}")
     if i != 0:
         cache.pass_3(iterptr, iters, initial_cache_indices)
         torch.cuda.synchronize()
-        return cache, initial_cache_indices.cpu(), time.time() - sampler_start
+        log.info(f"superbatch {i}, hit num: {cache.hit_num}, total place: {cache.total_place}\
+                     , hit ratio: {cache.hit_num / cache.total_place:.4f}")
+        return cache, initial_cache_indices.cpu(), time.time() - sampler_start, sample_time
     else:
         torch.cuda.synchronize()
-        return None, None, 0
+        return None, None, time.time() - sampler_start, sample_time
 
 
 def switch(cache, initial_cache_indices):
@@ -303,11 +288,11 @@ def switch(cache, initial_cache_indices):
 def trace_load(q, indices, sb):
     for i in indices:
         q.put((
-            torch.load('./trace/' + args.exp_name + '/' + 'sb_' +
+            torch.load(trace_path + '/' + args.exp_name + '/' + 'sb_' +
                        str(sb) + '_ids_' + str(i) + '.pth'),
-            torch.load('./trace/' + args.exp_name + '/' + 'sb_' +
+            torch.load(trace_path + '/' + args.exp_name + '/' + 'sb_' +
                        str(sb) + '_adjs_' + str(i) + '.pth'),
-            torch.load('./trace/' + args.exp_name + '/' + 'sb_' +
+            torch.load(trace_path + '/' + args.exp_name + '/' + 'sb_' +
                        str(sb) + '_update_' + str(i) + '.pth'),
         ))
 
@@ -320,11 +305,11 @@ def gather(gather_q, n_id, cache, batch_size):
 
 def delete_trace(i):
     n_id_filelist = glob.glob(
-        './trace/' + args.exp_name + '/sb_' + str(i - 1) + '_ids_*')
+        trace_path + '/' + args.exp_name + '/sb_' + str(i - 1) + '_ids_*')
     adjs_filelist = glob.glob(
-        './trace/' + args.exp_name + '/sb_' + str(i - 1) + '_adjs_*')
+        trace_path + '/' + args.exp_name + '/sb_' + str(i - 1) + '_adjs_*')
     cache_filelist = glob.glob(
-        './trace/' + args.exp_name + '/sb_' + str(i - 1) + '_update_*')
+        trace_path + '/' + args.exp_name + '/sb_' + str(i - 1) + '_update_*')
 
     for n_id_file in n_id_filelist:
         try:
@@ -395,7 +380,6 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 log.info(
                     f"loading n_id: {n_id.shape} finish, {adjs}, {in_indices.shape}, {in_positions.shape}, {out_indices.shape}")
                 batch_size = adjs[-1].size[1]
-                log.info(f"training batch_size: {batch_size}")
                 n_id_q.put(n_id)
                 adjs_q.put(adjs)
                 in_indices_q.put(in_indices)
@@ -404,7 +388,6 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
                 out_indices_q.put(out_indices)
 
             # Gather
-            log.info("begin gather")
             batch_inputs, _ = gather_ginex(
                 feature_path, n_id, feature_dim, cache)
             log.info(
@@ -453,6 +436,8 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
         n_id_cuda = n_id.to(device)
         out = model(batch_inputs_cuda, adjs, n_id_cuda)
         loss = F.nll_loss(out, batch_labels_cuda.long())
+        losses.append(loss.item())
+        cur_time.append(time.time() - start_time)
         # Backward
         if mode == 'train':
             optimizer.zero_grad()
@@ -547,7 +532,8 @@ def train_sample_cpu(epoch):
 
 def train_sample_gpu(epoch, gpu_sampler):
     model.train()
-    neighbor_indice_time = 0
+    inspect_time = 0
+    sampling_time = 0
     gather_and_train_time = 0
     training_time = 0
 
@@ -556,7 +542,7 @@ def train_sample_gpu(epoch, gpu_sampler):
     num_iter = int((shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
 
-    pbar = tqdm(total=dataset.shuffled_train_idx.numel(), position=0, leave=True)
+    pbar = tqdm(total=shuffled_train_idx.numel(), position=0, leave=True)
     pbar.set_description(f'Epoch {epoch:02d}')
 
     total_loss = total_correct = 0
@@ -571,10 +557,12 @@ def train_sample_gpu(epoch, gpu_sampler):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices, sampler_batch_time = inspect_gpu(
+        cache, initial_cache_indices, sampler_batch_time, exact_sample_time = inspect_gpu(
             i, last=(i == num_sb), gpu_sampler=gpu_sampler, mode='train')
         if args.verbose:
             tqdm.write('Step 1: Done')
+        inspect_time += sampler_batch_time
+        sampling_time += exact_sample_time
 
         if i == 0:
             gpu_sampler.inc_sb()
@@ -602,7 +590,6 @@ def train_sample_gpu(epoch, gpu_sampler):
 
         # Delete obsolete runtime files
         delete_trace(i)
-        neighbor_indice_time += sampler_batch_time
         # TODO: refine it!
         gpu_sampler.inc_sb()
         gpu_sampler.fresh_embedding()
@@ -611,9 +598,7 @@ def train_sample_gpu(epoch, gpu_sampler):
 
     loss = total_loss / num_iter
     approx_acc = total_correct / shuffled_train_idx.numel()
-    log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
-            time: {neighbor_indice_time}")
-    return loss, approx_acc, gather_and_train_time, training_time
+    return loss, approx_acc, gather_and_train_time, training_time, inspect_time, sampling_time
 
 
 @torch.no_grad()
@@ -647,7 +632,7 @@ def inference_gpu_sample(gpu_sampler, mode='test'):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
-        cache, initial_cache_indices, _ = inspect_gpu(
+        cache, initial_cache_indices, _, _ = inspect_gpu(
             i, last=(i == num_sb), gpu_sampler=gpu_sampler, mode=mode)
         torch.cuda.synchronize()
         if args.verbose:
@@ -780,28 +765,36 @@ if __name__ == '__main__':
                                         args.stale_thre, fifo_ratio=embedding_rate[i - 1], device=device)
     log.info("Initialize embedding cache finish")
 
+    total_batch = int((dataset.train_idx.numel() + args.batch_size - 1) / args.batch_size)
     avg_time = 0 #记录平均训练时间
 
     if args.use_gpu:
         log.info("initialize gpu sampler..")
-        gpu_sampler = get_sampler(edge_index, embedding_cache)
-        inference_gpu_sampler = get_sampler(edge_index, None) # inference 不使用嵌入缓存
-        log.info(f"training parameter: {sizes}")
+        gpu_sampler = get_sampler(indptr, indices, embedding_cache)
+        if args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
+            inference_indptr, inference_indices = dataset.get_adj_mat()
+            inference_gpu_sampler = get_sampler(inference_indptr, inference_indices, None) # inference 不使用嵌入缓存
         for epoch in range(args.num_epochs):
             if args.verbose:
                 tqdm.write('\n==============================')
                 tqdm.write('Running Epoch {}...'.format(epoch))
 
             start = time.time()
-            loss, acc, gather_and_train_time, training_time = train_sample_gpu(epoch, gpu_sampler)
+            loss, acc, gather_and_train_time, training_time, inspect_time, sample_time = train_sample_gpu(epoch, gpu_sampler)
             end = time.time()
             log.info(
                 f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
-            log.info('Epoch time: {:.4f} ms, Train time: {:.4f} ms, Gather time: {:.4f} ms'.format((end - start) * 1000, training_time * 1000,
-                                                                                                (gather_and_train_time - training_time) * 1000))
+            log.info('Epoch time: {:.4f} s, Train time: {:.4f} s, Gather time: {:.4f} s, Inspect time: {:.4f} s\
+                     '.format((end - start), training_time, (gather_and_train_time - training_time), inspect_time))
+            log.info('Sample time: {:.4f} s, Save time:{:.4f}'.format(sample_time, gpu_sampler.save_time))
+            log.info('average reduce: {:.4f}, average after: {:.4f}'.format(gpu_sampler.reduce / total_batch, gpu_sampler.after / total_batch))
+            for i in range(1, len(sizes)):
+                tmp_tag = 'layer_' + str(i)
+                log.info(f"cache fresh time: {embedding_cache[tmp_tag].cache_fresh_time} s")
+
             avg_time = avg_time+(end-start)*1000
 
-            if epoch > 3 and not args.train_only and args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
+            if epoch > 6 and not args.train_only and args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
 
                 val_loss, val_acc = inference_gpu_sample(inference_gpu_sampler, mode='valid')
                 test_loss, test_acc = inference_gpu_sample(inference_gpu_sampler, mode='test')
@@ -813,6 +806,14 @@ if __name__ == '__main__':
                     final_test_acc = test_acc
             gpu_sampler.reset_sampler()
         avg_time = avg_time / args.num_epochs
+
+        with open(args.dataset + '_loss.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(losses)
+        with open(args.dataset + '_time.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(cur_time)
+
         if not args.train_only:
             log.info(f'Final Test acc: {final_test_acc:.4f}')
             log.info(f'Average training time is {avg_time:.4f}')

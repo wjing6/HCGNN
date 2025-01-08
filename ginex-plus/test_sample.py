@@ -76,7 +76,7 @@ argparser.add_argument('--exist-binary', dest='exist_binary',
 argparser.add_argument('--neigh-prop', type=float, default=0.1)
 argparser.add_argument('--fifo-length', type=int, default=500000)
 argparser.add_argument('--epoch', type=int, default=1)
-args = argparser.parse_args()
+args, remaining_args = argparser.parse_known_args()
 
 # dataset argument
 if args.dataset in ["igb-tiny", "igb-small", "igb-medium", "igb-large", "igb-full"]:

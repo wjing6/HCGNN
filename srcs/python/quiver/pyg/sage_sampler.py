@@ -58,6 +58,7 @@ class GraphSageSampler:
                  num_nodes,
                  sizes: List[int],
                  exp_name,
+                 trace_path,
                  embedding_cache = None,
                  # consist of multi-layer 
                  device = 0,
@@ -75,10 +76,18 @@ class GraphSageSampler:
         self.mode = mode
         self.num_nodes = num_nodes
         self.embedding_cache = embedding_cache
+        self.save_time = 0
+
         if embedding_cache is not None:
             self.layers = len(embedding_cache)
         self.exp_name = exp_name
+        self.trace_path = trace_path
         self.sb = 0
+
+        self.reduce = 0
+        self.after = 0
+
+
         # manually increase
         # self.cur_batch = 0
         if self.mode in ["GPU", "UVA"] and device is not _FakeDevice and  device >= 0:
@@ -93,6 +102,7 @@ class GraphSageSampler:
         
         self.device = device
         self.ipc_handle_ = None
+        self.invalid_cache = torch.full([self.num_nodes], -1, dtype=torch.int64, device=self.device)
 
         self.batch_count = torch.zeros(1, dtype=torch.int).share_memory_()
         self.lock = mp.Lock()
@@ -113,8 +123,7 @@ class GraphSageSampler:
                 n_id, count = self.quiver.sample_neighbor(n_id, size)
         else:
             if self.mode in ["GPU", "UVA"]:
-                n_id, count = self.quiver.sample_neighbor(0, n_id, torch.full(
-                    [self.num_nodes], -1, dtype=torch.int64, device=self.device), size)
+                n_id, count = self.quiver.sample_neighbor(0, n_id, self.invalid_cache, size)
             else:
                 n_id, count = self.quiver.sample_neighbor(n_id, size)
         
@@ -139,18 +148,6 @@ class GraphSageSampler:
 
     def reindex(self, inputs, outputs, counts):
         return self.quiver.reindex_single(inputs, outputs, counts)
-    
-
-    def sample(self, input_nodes):
-        """Sample k-hop neighbors from input_nodes
-
-        Args:
-            input_nodes (torch.LongTensor): seed nodes ids to sample from
-
-        Returns:
-            Tuple: Return results are the same with Pyg's sampler
-        """
-        self.lazy_init_quiver()
 
     def sample(self, input_nodes):
         """Sample k-hop neighbors from input_nodes
@@ -170,7 +167,7 @@ class GraphSageSampler:
         if self.embedding_cache is not None:
             for layer, size in enumerate(self.sizes):
                 if layer == 0:
-                    out, cnt = self.sample_layer(nodes, size, torch.full([self.embedding_cache['layer_1'].cache_entry_status.shape[0]], -1, dtype=torch.int64, device=self.device))
+                    out, cnt = self.sample_layer(nodes, size, None)
                     frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
                     if row_idx.device.type != 'cpu':
                         row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
@@ -185,6 +182,12 @@ class GraphSageSampler:
                     # out: the total 'global' nID, cnt: the row ptr
                     # print (f"out shape: {out.shape}, cnt shape: {cnt.shape}")
                     frontier, row_idx, col_idx = self.reindex(nodes, out, cnt)
+
+                    # out_test, cnt_test = self.sample_layer(nodes, size, self.invalid_cache)
+                    # frontier_test, _, _ = self.reindex(nodes, out_test, cnt_test)
+                    # if layer == len(self.sizes) - 1:
+                    #     self.reduce += frontier_test.shape[0] - frontier.shape[0]
+                    #     self.after += frontier.shape[0]
                     # frontier: global id(去重), row_idx 和 col_idx 对应 local id, 表示邻接关系
                     self.embedding_cache[tmp_tag].evit_and_place_indice(nodes, self.batch_count.item())
                     # reindex still use the out, as we need to put the embedding 'back' to its initial position
@@ -192,11 +195,13 @@ class GraphSageSampler:
                     # edge_index = torch.stack([row_idx, col_idx], dim=0)
 
                     # TODO: more check!
+                    start = time.time()
                     if row_idx.device.type != 'cpu':
                         row_idx, col_idx = row_idx.to('cpu'), col_idx.to('cpu')
             
                     adj_t = SparseTensor(row=row_idx, col=col_idx, sparse_sizes=(nodes.size(0), frontier.size(0)),
                             is_sorted=True)  
+                    self.save_time += time.time() - start
                 size = adj_t.sparse_sizes()[::-1]
                 e_id = torch.tensor([])
                 adjs.append(Adj(adj_t, e_id, size))
@@ -214,6 +219,7 @@ class GraphSageSampler:
                 adjs.append(Adj(adj_t, e_id, size))
                 nodes = frontier
         
+        start = time.time()
         adjs = adjs[0] if len(adjs) == 1 else adjs[::-1] # reverse
         # print (adjs)
         if frontier.device.type != 'cpu':
@@ -223,13 +229,14 @@ class GraphSageSampler:
         # out = self.transform(*out) if self.transform is not None else out
         
         self.lock.acquire()
-        n_id_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_ids_' + str(self.batch_count.item()) + '.pth')
-        adjs_filename = os.path.join('./trace', self.exp_name, 'sb_' + str(self.sb) + '_adjs_' + str(self.batch_count.item()) + '.pth')
+        n_id_filename = os.path.join(self.trace_path, self.exp_name, 'sb_' + str(self.sb) + '_ids_' + str(self.batch_count.item()) + '.pth')
+        adjs_filename = os.path.join(self.trace_path, self.exp_name, 'sb_' + str(self.sb) + '_adjs_' + str(self.batch_count.item()) + '.pth')
         self.batch_count += 1
         self.lock.release()
 
         torch.save(frontier, n_id_filename)
         torch.save(adjs, adjs_filename)
+        self.save_time += time.time() - start
         # return nodes, batch_size, adjs[::-1]
 
     def sample_prob(self, train_idx, total_node_count):
@@ -255,8 +262,13 @@ class GraphSageSampler:
 
     def reset_sampler(self):
         self.sb = 0
+        self.save_time = 0
+        self.after = 0
+        self.reduce = 0
+
         self.batch_count = torch.zeros(1, dtype=torch.int).share_memory_()
-        self.fresh_embedding()
+        if self.embedding_cache is not None:
+            self.fresh_embedding()
 
     def share_ipc(self):
         """Create ipc handle for multiprocessing

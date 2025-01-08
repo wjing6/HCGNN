@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import sys
 from log import log
+import time
 # implementation of s3FIFO and FIFO, now use FIFO for embedding cache
 
 class s3FIFO:
@@ -88,12 +89,13 @@ class FIFO:
         self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
         self.hit_num = 0
         self.total_place_num = 0
+        self.cache_fresh_time = 0
+        self.staleness_thre = staleness_thre
         if self.fifo_ratio > 0:
             self.cache_size = int(fifo_ratio * cache_entries)
             self.cache_idx = torch.zeros(self.cache_size, dtype=torch.int64, device=self.device) 
             # the cached idx
             self.only_indice = only_indice
-            self.staleness_thre = staleness_thre
 
             self.head = 0
             self.cur_len = 0
@@ -273,10 +275,15 @@ class FIFO:
         return range(pop_num)
     
     def reset(self):
-        self.cache_entry_status = torch.full([self.num_entries], -1, dtype=torch.int64, device=self.device)
-        self.cache_idx = torch.zeros(self.cache_size, dtype=torch.int64, device=self.device) # the cached idx
+        # 不回收实际缓存
+        if self.fifo_ratio == 0:
+            return 
+        start = time.time()
+        self.cache_entry_status = self.cache_entry_status.fill_(-1)
         self.head = 0
         self.cur_len = 0
+        self.cache_fresh_time += time.time() - start
+
     
     
 

@@ -115,7 +115,7 @@ def prepare_topo(root, dataset, edge_index, train_idx, feature_dim, need_score, 
     return indptr_path, indptr_shape, indices_path, score_path
 
 
-def get_edge_index(root, dataset_name, f_dim):
+def get_edge_index(root, dataset_name, f_dim, args=None):
     if dataset_name in ["ogbn-products", 'ogbn-papers100M']:
         dataset_root = root.rpartition('/')[0]
         dataset = PygNodePropPredDataset(dataset_name, dataset_root)
@@ -172,6 +172,13 @@ def get_edge_index(root, dataset_name, f_dim):
             train_idx = sample(range(num_nodes), int(0.1 * num_nodes))
             train_idx = torch.tensor(train_idx)
             torch.save(train_idx, train_idx_path)
+    elif dataset_name in ['igb-medium', 'igb-large']:
+        dataset = IGB260MDGLDataset(args)
+        graph = dataset[0]
+        feature_dim = graph.ndata['feat'].shape[1]
+        train_idx = torch.nonzero(graph.ndata['train_mask'], as_tuple=True)[0]
+        num_nodes = graph.num_nodes()
+        edge_index = graph.edges()    
     else:
         log.error("unsupported dataset!")
         sys.exit(0)
@@ -199,11 +206,11 @@ class GinexDataset():
         conf_path = os.path.join(self.root_path, 'conf.json')
         score_path = os.path.join(self.root_path, 'nc_score.pth')
         if not os.path.exists(conf_path):
-            log.info(f"{conf_path}")            
+            log.info(f"{conf_path}")
             self.prepare_dataset()
         self.conf = json.load(open(conf_path, 'r'))
         self.feature_dim = self.conf['features_shape'][1]
-        self.edge_index, _, _, _ = get_edge_index(self.root_path, self.dataset, self.feature_dim)
+        # self.edge_index, _, _, _ = get_edge_index(self.root_path, self.dataset, self.feature_dim)
         
 
         if os.path.exists(split_idx_path):
@@ -224,7 +231,7 @@ class GinexDataset():
     # Return indptr & indices
     def get_adj_mat(self):
         indptr = np.fromfile(self.indptr_path, dtype=self.conf['indptr_dtype']).reshape(tuple(self.conf['indptr_shape']))
-        indices = np.memmap(self.indices_path, mode='r', shape=tuple(self.conf['indices_shape']), dtype=self.conf['indices_dtype'])
+        indices = np.fromfile(self.indices_path, dtype=self.conf['indices_dtype']).reshape(tuple(self.conf['indices_shape']))
         indptr = torch.from_numpy(indptr)
         indices = torch.from_numpy(indices)
         return indptr, indices
