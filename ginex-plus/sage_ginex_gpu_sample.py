@@ -43,7 +43,8 @@ argparser.add_argument('--sb-size', type=int, default=1000)
 argparser.add_argument('--prop', type=float, default=0.01)
 argparser.add_argument('--gpu', type=int, default=0)
 # whether use GPU for sampling
-argparser.add_argument('--use-gpu', type=bool, default=True)
+argparser.add_argument('--use-gpu', dest='use_gpu',
+                       default=False, action='store_true')
 argparser.add_argument('--exist-binary', dest='exist_binary',
                        default=False, action='store_true')
 argparser.add_argument('--num-epochs', type=int, default=10)
@@ -95,8 +96,8 @@ dataset = GinexDataset(dataset_path, args.dataset, split_idx_path=split_idx_path
 
 start_time = time.time()
 
-if not args.use_gpu:
-    dataset.save_neighbor_cache(args.neigh_cache_size)
+# if not args.use_gpu:
+#     dataset.save_neighbor_cache(args.neigh_cache_size)
 
 # edge_index = dataset.edge_index
 # log.info(f"edge_index: {edge_index.shape}")
@@ -123,7 +124,11 @@ feature_dim = dataset.feature_dim
 feature_path = dataset.features_path
 labels = dataset.get_labels()
 log.info("loading labels finish")
-indptr, indices = dataset.get_adj_mat()
+log.info(f"{args.use_gpu}")
+if args.use_gpu:
+    indptr, indices = dataset.get_adj_mat_direct()
+else:
+    indptr, indices = dataset.get_adj_mat()
 log.info("loading indptr and indice finish, all prepare finish")
 
 
@@ -216,17 +221,18 @@ def inspect_cpu(i, last, mode='train'):
                                   batch_size=args.batch_size,
                                   shuffle=False, num_workers=0)
 
+    start = time.time()
     for step, _ in enumerate(loader):
         if i != 0 and step == 0:
             cache.pass_3(iterptr, iters, initial_cache_indices)
-
+    sample_time = time.time() - start
     tensor_free(neighbor_cache)
     tensor_free(neighbor_cachetable)
 
     if i != 0:
-        return cache, initial_cache_indices.cpu(), loader.embedding_indice_update_timer
+        return cache, initial_cache_indices.cpu(), sample_time
     else:
-        return None, None, 0
+        return None, None, sample_time
 
 
 def inspect_gpu(i, last, gpu_sampler, mode='train'):
@@ -472,7 +478,11 @@ def execute(i, cache, pbar, total_loss, total_correct, last, mode='train'):
 
 def train_sample_cpu(epoch):
     model.train()
+    inspect_time = 0
     neighbor_indice_time = 0
+    training_time = 0
+    gather_and_train_time = 0
+
     dataset.make_new_shuffled_train_idx()
     num_iter = int((dataset.shuffled_train_idx.numel() +
                    args.batch_size-1) / args.batch_size)
@@ -492,9 +502,13 @@ def train_sample_cpu(epoch):
         # Superbatch sample
         if args.verbose:
             tqdm.write('Step 1: Superbatch Sample')
+        start = time.time()
         cache, initial_cache_indices, sampler_batch_time = inspect_cpu(
             i, last=(i == num_sb), mode='train')
         torch.cuda.synchronize()
+        inspect_time += time.time() - start
+        neighbor_indice_time += sampler_batch_time
+
         if args.verbose:
             tqdm.write('Step 1: Done')
 
@@ -512,22 +526,22 @@ def train_sample_cpu(epoch):
         # Main loop
         if args.verbose:
             tqdm.write('Step 3: Main Loop')
-        total_loss, total_correct, _ = execute(
+        start = time.time()
+        total_loss, total_correct, cur_train_time = execute(
             i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
+        training_time += cur_train_time
+        gather_and_train_time += time.time() - start
         if args.verbose:
             tqdm.write('Step 3: Done')
 
         # Delete obsolete runtime files
         delete_trace(i)
-        neighbor_indice_time += sampler_batch_time
-
+        
     pbar.close()
 
     loss = total_loss / num_iter
     approx_acc = total_correct / dataset.shuffled_train_idx.numel()
-    log.info(f"epoch: {epoch}, evit time: {model.evit_time}, index select time: {model.index_select_time}, cache transfer time: {model.cache_transfer_time}, sampler indice \
-            time: {neighbor_indice_time}")
-    return loss, approx_acc
+    return loss, approx_acc, gather_and_train_time, training_time, inspect_time, neighbor_indice_time
 
 
 def train_sample_gpu(epoch, gpu_sampler):
@@ -805,6 +819,52 @@ if __name__ == '__main__':
                     best_val_acc = val_acc
                     final_test_acc = test_acc
             gpu_sampler.reset_sampler()
+        avg_time = avg_time / args.num_epochs
+
+        with open(args.dataset + '_loss.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(losses)
+        with open(args.dataset + '_time.csv', mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(cur_time)
+
+        if not args.train_only:
+            log.info(f'Final Test acc: {final_test_acc:.4f}')
+            log.info(f'Average training time is {avg_time:.4f}')
+
+            with open('./result.txt','a') as file:
+                file.write(f'stale threshold: {args.stale_thre}, embedding size: {args.embedding_sizes} .\n')
+                file.write(f'Final Test acc: {final_test_acc:.4f}.\n')
+                file.write(f'Average training time is {avg_time:.4f}')
+    else:
+        for epoch in range(args.num_epochs):
+            if args.verbose:
+                tqdm.write('\n==============================')
+                tqdm.write('Running Epoch {}...'.format(epoch))
+
+            start = time.time()
+            loss, acc, gather_and_train_time, training_time, inspect_time, sample_time = train_sample_cpu(epoch)
+            end = time.time()
+            log.info(
+                f'Epoch {epoch:02d}, Loss: {loss:.4f}, Approx. Train: {acc:.4f}')
+            log.info('Epoch time: {:.4f} s, Train time: {:.4f} s, Gather time: {:.4f} s, Inspect time: {:.4f} s\
+                     '.format((end - start), training_time, (gather_and_train_time - training_time), inspect_time))
+            for i in range(1, len(sizes)):
+                tmp_tag = 'layer_' + str(i)
+                log.info(f"cache fresh time: {embedding_cache[tmp_tag].cache_fresh_time} s")
+
+            avg_time = avg_time+(end-start)*1000
+
+            if epoch > 6 and not args.train_only and args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
+
+                val_loss, val_acc = inference(mode='valid')
+                test_loss, test_acc = inference(mode='test')
+                log.info('Valid loss: {0:.4f}, Valid acc: {1:.4f}, Test loss: {2:.4f}, Test acc: {3:.4f},'.format(
+                    val_loss, val_acc, test_loss, test_acc))
+
+                if val_acc > best_val_acc:
+                    best_val_acc = val_acc
+                    final_test_acc = test_acc
         avg_time = avg_time / args.num_epochs
 
         with open(args.dataset + '_loss.csv', mode='w', newline='') as file:

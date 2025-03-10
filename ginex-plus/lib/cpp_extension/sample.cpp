@@ -27,6 +27,8 @@ int64_t load_neighbors_into_buffer(int col_fd, int64_t row_start, int64_t row_co
 std::tuple<int64_t*, int64_t*, int64_t> get_new_neighbor_buffer(int64_t row_count){
     int64_t size = (row_count*sizeof(int64_t) + 3*ALIGNMENT)&(long)~(ALIGNMENT-1);
     int64_t* neighbor_buffer = (int64_t*)malloc(size + ALIGNMENT);
+    // 这里好像有问题，因为 load_neighbors_into_buffer 会从 offset 读取，不是从 buffer 开头开始读
+    // 长度上可能导致 load_neighbors_into_buffer 访问 aligned_neighbor_buffer 范围外的数据
     int64_t* aligned_neighbor_buffer = (int64_t*)(((long)neighbor_buffer+(long)ALIGNMENT)&(long)~(ALIGNMENT-1));
 
     return std::make_tuple(neighbor_buffer, aligned_neighbor_buffer, size/sizeof(int64_t));

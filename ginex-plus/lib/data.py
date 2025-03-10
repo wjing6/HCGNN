@@ -229,9 +229,16 @@ class GinexDataset():
 
 
     # Return indptr & indices
-    def get_adj_mat(self):
+    def get_adj_mat_direct(self):
         indptr = np.fromfile(self.indptr_path, dtype=self.conf['indptr_dtype']).reshape(tuple(self.conf['indptr_shape']))
         indices = np.fromfile(self.indices_path, dtype=self.conf['indices_dtype']).reshape(tuple(self.conf['indices_shape']))
+        indptr = torch.from_numpy(indptr)
+        indices = torch.from_numpy(indices)
+        return indptr, indices
+    
+    def get_adj_mat(self):
+        indptr = np.fromfile(self.indptr_path, dtype=self.conf['indptr_dtype']).reshape(tuple(self.conf['indptr_shape']))
+        indices = np.memmap(self.indices_path, mode='r', shape=tuple(self.conf['indices_shape']), dtype=self.conf['indices_dtype'])
         indptr = torch.from_numpy(indptr)
         indices = torch.from_numpy(indices)
         return indptr, indices

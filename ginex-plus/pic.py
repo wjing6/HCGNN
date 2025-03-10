@@ -2,15 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
 
-mpl.rcParams['font.size'] = 16  # 调整字体大小，保证图表清晰
+ # 调整字体大小，保证图表清晰
 mpl.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体
+mpl.rcParams['font.size'] = 20 
 mpl.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 # 数据设置
 users = ['缓存配置 1', '缓存配置 2', '缓存配置 3', '缓存配置 4', '缓存配置 5']
 data = {
-    '陈旧阈值: 5': [46.52, 46.48, 46.32, 46.25, 46.28],
-    '陈旧阈值: 10': [46.15, 46.21, 46.18, 46.21, 45.92],
+    '过期阈值: 5': [46.52, 46.48, 46.32, 46.25, 46.28],
+    '过期阈值: 10': [46.15, 46.21, 46.18, 46.21, 45.92],
 }
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
 
