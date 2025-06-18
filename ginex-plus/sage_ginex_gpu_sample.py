@@ -16,6 +16,7 @@ from lib.neighbor_sampler import GinexNeighborSampler
 from lib.data import GinexDataset
 from lib.utils import *
 import argparse
+import argcomplete
 from model.sage_with_stale import SAGE
 from queue import Queue
 from log import log
@@ -36,6 +37,7 @@ losses = []
 cur_time = []
 
 
+# parse command line args
 argparser = argparse.ArgumentParser()
 argparser.add_argument('--dataset', type=str, default='ogbn-papers100M')
 argparser.add_argument('--feature-cache-size', type=float, default=500000000)
@@ -84,7 +86,13 @@ if args.dataset in ['igb-medium', 'igb-large']:
     argparser.add_argument('--synthetic', type=int, default=0,
                            choices=[0, 1], help='0:nlp-node embeddings, 1:random')
 
+# 启用 argcomplete 自动补全
+argcomplete.autocomplete(argparser)
+
+# 解析命令行参数
 args = argparser.parse_args()
+
+
 
 split_idx_path = os.path.join(dataset_path, 'split_idx.pth')
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
@@ -113,8 +121,17 @@ os.makedirs(os.path.join(trace_path, args.exp_name), exist_ok=True)
 device = torch.device('cuda:%d' % args.gpu)
 torch.cuda.set_device(device)
 # TODO: use OmegaConf to reduce parameter
-model = SAGE(dataset.feature_dim, args.num_hiddens,
-             dataset.num_classes, num_layers=len(sizes), stale_thre=args.stale_thre, num_nodes=dataset.num_nodes, device=device, cache_device=device, embedding_rate=embedding_rate)
+model = SAGE(
+    in_channels=dataset.feature_dim,
+    hidden_channels=args.num_hiddens,
+    out_channels=dataset.num_classes,
+    num_layers=len(sizes),
+    num_nodes=dataset.num_nodes,
+    device=device,
+    cache_device=device,
+    stale_thre=args.stale_thre,
+    embedding_rate=embedding_rate
+)
 model = model.to(device)
 
 mmapped_features = dataset.get_mmapped_features()
@@ -139,6 +156,7 @@ def get_csr(edge_index):
     return csr_topo
 
 def get_sampler(indptr, indices, embedding_cache):
+    """构建Sampler，目前只有在GPU采样器情况下调用此函数"""
     if args.use_gpu:
         transfer_start = time.time()
         csr_topo = quiver.CSRTopo(indices=indices, indptr=indptr)
@@ -150,6 +168,8 @@ def get_sampler(indptr, indices, embedding_cache):
         log.info(f"indptr: {csr_topo.indptr[-5:]}")
         log.info(f"indice: {csr_topo.indices[-5:]}")
     else:
+        """NEVER REACHES HERE!"""
+        assert False, "get_sampler should only be called in inspect_gpu"
         '''
         Now use prop for test, so we can set 'cache_size' as 0
         use '1' for all neighbor placed in CPU
@@ -157,7 +177,16 @@ def get_sampler(indptr, indices, embedding_cache):
         indptr = dataset.get_rowptr_mt()
         score = dataset.get_score()
         num_nodes = dataset.num_nodes
-        neighbor_cache = NeighborCache(0, score, indptr, dataset.indices_path, num_nodes, 1)
+
+        neighbor_cache = NeighborCache(
+            size=0,
+            score=score,
+            indptr=indptr,
+            indices=dataset.indices_path,
+            num_nodes=num_nodes,
+            prop=1
+        )
+
         neigh_sampler = GinexNeighborSampler(indptr, dataset.indices_path, node_idx=dataset.shuffled_train_idx,
                                        sizes=sizes, num_nodes = num_nodes,
                                        cache_data = neighbor_cache.cache, address_table = neighbor_cache.address_table,
@@ -197,6 +226,7 @@ def inspect_cpu(i, last, mode='train'):
         else:
             torch.cuda.empty_cache()
 
+    # 加载neighbor cache和neighbor cachetable
     neighbor_cache_path = str(dataset_path) + '/nc_size_' + str(args.neigh_cache_size) + '.dat'
     neighbor_cache_conf_path = str(
         dataset_path) + '/nc_size_' +  str(args.neigh_cache_size) + '_conf.json'
@@ -208,18 +238,32 @@ def inspect_cpu(i, last, mode='train'):
         dataset_path) + '/nctbl_size_' + str(args.neigh_cache_size) + '_conf.json'
     neighbor_cachetable_numel = json.load(
         open(neighbor_cachetable_conf_path, 'r'))['shape'][0]
+    
+
     neighbor_cache = load_int64(neighbor_cache_path, neighbor_cache_numel)
     neighbor_cachetable = load_int64(
         neighbor_cachetable_path, neighbor_cachetable_numel)
+    
+
     start_idx = i * args.batch_size * args.sb_size
     end_idx = min((i+1) * args.batch_size * args.sb_size, node_idx.numel())
-    loader = GinexNeighborSampler(indptr, dataset.indices_path, args.exp_name, i, args.stale_thre, node_idx=node_idx[start_idx:end_idx],
-                                  embedding_size=embedding_rate, sizes=sizes,
-                                  cache_data=neighbor_cache, address_table=neighbor_cachetable,
-                                  num_nodes=num_nodes,
-                                  cache_dim=args.num_hiddens,
-                                  batch_size=args.batch_size,
-                                  shuffle=False, num_workers=0)
+    loader = GinexNeighborSampler(
+        indptr=indptr,
+        indices=dataset.indices_path,
+        exp_name=args.exp_name,
+        sb=i,
+        staleness_thre=args.stale_thre,
+        sizes=sizes,
+        node_idx=node_idx[start_idx:end_idx],
+        embedding_size=embedding_rate,
+        cache_data=neighbor_cache,
+        address_table=neighbor_cachetable,
+        num_nodes=num_nodes,
+        cache_dim=args.num_hiddens,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=16 # originally 0 ?
+    )
 
     start = time.time()
     for step, _ in enumerate(loader):
@@ -504,7 +548,10 @@ def train_sample_cpu(epoch):
             tqdm.write('Step 1: Superbatch Sample')
         start = time.time()
         cache, initial_cache_indices, sampler_batch_time = inspect_cpu(
-            i, last=(i == num_sb), mode='train')
+            i, 
+            last=(i == num_sb), 
+            mode='train'
+        )
         torch.cuda.synchronize()
         inspect_time += time.time() - start
         neighbor_indice_time += sampler_batch_time
@@ -528,7 +575,14 @@ def train_sample_cpu(epoch):
             tqdm.write('Step 3: Main Loop')
         start = time.time()
         total_loss, total_correct, cur_train_time = execute(
-            i, cache, pbar, total_loss, total_correct, last=(i == num_sb), mode='train')
+            i, 
+            cache, 
+            pbar, 
+            total_loss, 
+            total_correct, 
+            last=(i == num_sb), 
+            mode='train'
+        )
         training_time += cur_train_time
         gather_and_train_time += time.time() - start
         if args.verbose:
@@ -541,6 +595,8 @@ def train_sample_cpu(epoch):
 
     loss = total_loss / num_iter
     approx_acc = total_correct / dataset.shuffled_train_idx.numel()
+
+    
     return loss, approx_acc, gather_and_train_time, training_time, inspect_time, neighbor_indice_time
 
 
@@ -837,6 +893,7 @@ if __name__ == '__main__':
                 file.write(f'Final Test acc: {final_test_acc:.4f}.\n')
                 file.write(f'Average training time is {avg_time:.4f}')
     else:
+        # use CPU
         for epoch in range(args.num_epochs):
             if args.verbose:
                 tqdm.write('\n==============================')
@@ -853,7 +910,7 @@ if __name__ == '__main__':
                 tmp_tag = 'layer_' + str(i)
                 log.info(f"cache fresh time: {embedding_cache[tmp_tag].cache_fresh_time} s")
 
-            avg_time = avg_time+(end-start)*1000
+            avg_time = avg_time + (end - start) * 1000
 
             if epoch > 6 and not args.train_only and args.dataset in ["ogbn-papers100M", "ogbn-products", "igb-medium"]:
 
@@ -878,8 +935,13 @@ if __name__ == '__main__':
             log.info(f'Final Test acc: {final_test_acc:.4f}')
             log.info(f'Average training time is {avg_time:.4f}')
 
+            timestamp = time.time()
+            readable_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            # 追加日志
             with open('./result.txt','a') as file:
+                file.write(f'==== training task ended at {readable_time} ====\n')
+                file.write(f'origin command: {sys.argv}\n')
                 file.write(f'stale threshold: {args.stale_thre}, embedding size: {args.embedding_sizes} .\n')
                 file.write(f'Final Test acc: {final_test_acc:.4f}.\n')
-                file.write(f'Average training time is {avg_time:.4f}')
+                file.write(f'Average training time is {avg_time:.4f}\n')
 

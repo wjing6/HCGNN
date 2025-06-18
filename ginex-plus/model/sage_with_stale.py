@@ -8,6 +8,7 @@ import numpy as np
 import time
 
 class SAGE(torch.nn.Module):
+    """GNN模型，作用是处理图数据，并生成每个节点的嵌入表示"""
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, num_nodes, 
                 device, cache_device, stale_thre, embedding_rate: List[float]):
         super(SAGE, self).__init__()

@@ -109,3 +109,51 @@ Final Test acc: 0.7860.
 Average training time is 22291.5779stale threshold: 1000, embedding size: 0.0045,0.045 .
 Final Test acc: 0.6903.
 Average training time is 21395.6867
+
+
+stale threshold: 5, embedding size: 0.0001,0.0005 .
+Final Test acc: 0.4624.
+Average training time is 329941.7655
+
+stale threshold: 5, embedding size: 0.0004502,0.004502 .
+Final Test acc: 0.4596.
+Average training time is 320220.6692stale threshold: 5, embedding size: 0.0007692,0.007692 .
+Final Test acc: 0.0000.
+Average training time is 6426932.4764
+
+
+==== training task ended at 1742111455.5496192 ====
+origin command: ['sage_ginex_gpu_sample.py', '--dataset', 'ogbn-papers100M', '--feature-cache-size', '500000000', '--sb-size', '1000', '--batch-size', '1000', '--embedding-sizes', '0.0004502,0.004502', '--verbose', '--num-epochs=1']
+stale threshold: 5, embedding size: 0.0004502,0.004502 .
+Final Test acc: 0.0000.
+Average training time is 326396.3964
+==== training task ended at 2025-03-19 14:42:05 ====
+origin command: ['sage_ginex_gpu_sample.py', '--embedding-sizes', '0.00009,0.0009', '--verbose']
+stale threshold: 5, embedding size: 0.00009,0.0009 .
+Final Test acc: 0.4596.
+Average training time is 417297.9863
+==== training task ended at 2025-03-20 23:55:21 ====
+origin command: ['sage_ginex_gpu_sample.py', '--dataset', 'friendster', '--feature-cache-size', '500000000', '--sb-size', '1000', '--batch-size', '1000', '--embedding-sizes', '0.00015,0.0015', '--verbose']
+stale threshold: 5, embedding size: 0.00015,0.0015 .
+Final Test acc: 0.0000.
+Average training time is 7416982.3620
+==== training task ended at 2025-03-23 10:27:56 ====
+origin command: ['sage_ginex_gpu_sample.py', '--dataset', 'igb-medium', '--feature-cache-size', '500000000', '--sb-size', '1000', '--batch-size', '1000', '--embedding-sizes', '0.001,0.01', '--verbose']
+stale threshold: 5, embedding size: 0.001,0.01 .
+Final Test acc: 0.3729.
+Average training time is 2444631.3466
+==== training task ended at 2025-03-25 09:34:10 ====
+origin command: ['sage_ginex_gpu_sample.py', '--dataset', 'ogbn-papers100M', '--feature-cache-size', '5000000000', '--sb-size', '1000', '--batch-size', '1000', '--embedding-sizes', '0.00009,0.0009', '--verbose']
+stale threshold: 5, embedding size: 0.00009,0.0009 .
+Final Test acc: 0.4604.
+Average training time is 368288.8060
+==== training task ended at 2025-03-26 02:07:41 ====
+origin command: ['sage_ginex_gpu_sample.py', '--dataset', 'friendster', '--feature-cache-size', '5000000000', '--sb-size', '1000', '--batch-size', '1000', '--embedding-sizes', '0.00015,0.0015', '--verbose']
+stale threshold: 5, embedding size: 0.00015,0.0015 .
+Final Test acc: 0.0000.
+Average training time is 5182191.9705
+==== training task ended at 2025-03-26 13:15:02 ====
+origin command: ['sage_ginex_gpu_sample.py', '--dataset', 'igb-medium', '--feature-cache-size', '5000000000', '--sb-size', '1000', '--batch-size', '1000', '--embedding-sizes', '0.001,0.01', '--verbose']
+stale threshold: 5, embedding size: 0.001,0.01 .
+Final Test acc: 0.3726.
+Average training time is 2114112.5324
